@@ -26,4 +26,3 @@ des <- function(df) {  #> 载入自定义函数
     subset(label, select = c("variable", "type", "label"))
 }
 
-
