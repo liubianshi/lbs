@@ -27,3 +27,34 @@ isempty <- function(x, na = NULL) {
     empty_x
 }
 
+#' Replacing empty value with latest non-empty value
+#'
+#' @description based on https://stackoverflow.com/a/13810615
+#' @param x an R object to be filled
+#' @param forward bool value, define filling direction
+#' @param maxgap Int value, define max fill gap
+#' @examples
+#' x = c(NA,NA,'a',NA,NA,NA,NA,NA,NA,NA,NA,'b','c','d',NA,NA,NA,NA,NA,'e') 
+#' fill(x)
+#' fill(x, forward = FALSE)
+#' fill(x, maxgap = 4)
+#' fill(x, maxgap = 5)
+#' @export
+fill = function(x, forward = TRUE, maxgap = Inf) {
+    if (!forward) x = rev(x)           # reverse x twice if carrying backward
+    ind = which(!isempty(x))           # get positions of empty values
+    if (isempty(x[1]))                 # if it begins with NA
+        ind = c(1,ind)                 # add first pos
+    rep_times = diff(                  # diffing the indices + length yields how often
+        c(ind, length(x) + 1) )          # they need to be repeated
+    if (maxgap < Inf) {
+        exceed = rep_times - 1 > maxgap  # exceeding maxgap
+        if (any(exceed)) {               # any exceed?
+            ind = sort(c(ind[exceed] + 1, ind))      # add NA in gaps
+            rep_times = diff(c(ind, length(x) + 1) ) # diff again
+        }
+    }
+    x = rep(x[ind], times = rep_times) # repeat the values at these indices
+    if (!forward) x = rev(x)           # second reversion
+    x
+}
