@@ -1,0 +1,171 @@
+#' Lag/Forward operator in time series
+#'
+#' @export
+stlag <- function(object, ...) {
+    UseMethod("stlag")
+}
+
+#' Calculate lagged value
+#'
+#' @description Calculate n lagged value of x relate to time
+#' @param x a vector
+#' @param time a interger vector, length must equal to x
+#' @param n an integer
+#' @examples
+#' time = rep(2001:2006)
+#' x = sample(6)
+#' stlag(x, time)
+#' @export
+stlag.default <- function(x, time, n = 1L) {
+    if (is.list(x)) {
+        df <- as.data.table(x)
+        stlag.data.frame(x, time, n)
+    }
+    if (length(n) != 1)
+        stop("n's length must equal to 1")
+    if (! is.integer(n) || n == 0)
+        stop("n must be a non-zero interger")
+    if (length(x) != length(time))
+        stop("length of x and time need equal")
+    if (anyDuplicated(time, incomparables = NA) != 0)
+        stop("duplicates in \"time\"")
+    index <- match(time - n, time, incomparables = NA)
+    x[index]
+}
+
+#' stlag for data.frame
+#'
+#' @examples
+#' ts <- data.table(time = 2001:2009, x = 1:9, y = sample(letters, 9))
+#' stlag(ts, x, time = "time", mode = "list")
+#' stlag(ts, x, time)
+#' stlag(ts, y, time, n = -1L)
+#' xt <- data.frame(
+#'     id = rep(c("a", "b"), each = 5),
+#'     time = rep(2001:2005, 2),
+#'     x = 1:10,
+#'     y = sample(letters, 10, replace = TRUE),
+#'     z = sample(LETTERS, 10, replace = TRUE)
+#' )
+#' stxtset(xt, id, time)
+#' stlag(xt, x, n = -1L, mode = "list")
+#' stlag(setDT(xt), x)
+#' xt
+#' 
+#' @export
+stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
+                             n = 1L, mode = NULL) {
+    names_df <- names(df)
+
+    # 将 data.frame 转化为 data.table
+    if (isFALSE(is.data.table(df))) {
+        if (is.null(mode)) stop("Update by reference needing a data.table")
+        setDT(df)
+    }
+
+    # 变量名裸字转换为变量名向量
+    if (valid_name(substitute(time), df))
+        time <- deparse(substitute(time))
+    if (valid_name(substitute(varlist), df))
+        varlist <- deparse(substitute(varlist))
+    if (valid_name(substitute(by), df))
+        by <- deparse(substitute(by))
+
+    # 时间变量的验证
+    if (is.null(time)) {
+        if (is.null(by)) {
+            if (stxtcheck(df)[[1]]) {
+                xt   <- attr(df, "xt")
+                by   <- xt[1]
+                time <- xt[2]
+            } else if (sttscheck(df)[[1]]) {
+                time <- attr(df, "ts")
+            } else {
+                stop("time variable isnot setting")
+            }
+        } else {
+            stop("Cannot set \"by\" without setting \"time\"")
+        }
+    }
+    if (isempty(time))           stop("Time variable setting error")
+    if (length(time) != 1)       stop("only one time variable is allowed")
+    if (!is.integer(df[[time]])) stop("time variable must point to an integer vector")
+    if (is.integer(time))  time <- names_df[time]
+
+    # 面板 ID 的验证
+    if (isFALSE(is.null(by) || (is.character(by) && all(by %in% names_df)))) {
+        stop("by need to be NULL or a character vector consists of valid names")
+    }
+
+    # 待求 Lag 的变量
+    varlist <- if (is.null(varlist)) {
+        names_df
+    } else if (is.integer(varlist)) {
+        names_df[varlist]
+    } else {
+        varlist
+    }
+    if (isFALSE(all(varlist %in% names_df)))
+        stop("Some value in varlist isnot exist!")
+    varlist <- setdiff(varlist, c(time, by))
+    k.lag.varlist <- gen_lag_name(varlist, n)
+
+    # 在 data.table 上进行修改
+    if (is.null(mode)) {
+        if (is.null(by)) {
+            df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
+                                           .SD[[1]], ..n),
+                .SDcols = c(time, varlist)]
+        } else {
+            df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
+                                           .SD[[1]], ..n),
+                by = c(by), .SDcols = c(time, varlist)]
+        }
+        return(df)
+    }
+
+    # 输出制定模式的结果
+    new.df <- if (is.null(by)) {
+        df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
+             .SDcols = c(time, varlist)]
+    } else {
+        df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
+             by = c(by), .SDcols = c(time, varlist)]
+    }
+    setnames(new.df, c(by, time, k.lag.varlist))
+
+    out <- if (mode == "list") {
+        as.list(new.df[, c(..k.lag.varlist)])
+    } else if (mode == "data.frame") {
+        setDF(new.df)
+    } else if (mode == "data.table") {
+        new.df
+    } else {
+        stop("invalid mode")
+    }
+    out
+}
+
+gen_lag_name <- function(names, n) {
+    if (!isTRUE(is.integer(n))) stop("n must be an interger")
+    lag_name <- if (n < -1L) {
+        paste0("F", -n, ".", names)
+    } else if ( n == -1L ) {
+        paste0("F.", names)
+    } else if ( n == 0L ) {
+        names
+    }else if ( n == 1L ) {
+        paste0("L.", names)
+    } else {
+        paste0("L", n, ".", names)
+    }
+    lag_name
+}
+
+valid_name <- function(expr, df) {
+    if (is.symbol(expr) && deparse(expr) %in% names(df))
+        TRUE
+    else
+        FALSE
+}
+

@@ -2,7 +2,7 @@
 % Please edit documentation in R/stata_related.R
 \name{stlabel}
 \alias{stlabel}
-\title{Set attributes for variables in data.table}
+\title{Set attributes for variables in data.frame}
 \usage{
 stlabel(df, variable, attribute, type = "label")
 }
