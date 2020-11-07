@@ -1,20 +1,49 @@
 #' Lag/Forward operator in time series
 #'
-#' @export
-stlag <- function(object, ...) {
-    UseMethod("stlag")
-}
-
-#' Calculate lagged value
+#' @description Calculate the lag/forward terms of variables and vectors
 #'
-#' @description Calculate n lagged value of x relate to time
-#' @param x a vector
-#' @param time a interger vector, length must equal to x
-#' @param n an integer
+#' @param x a vector.
+#' @param df a a data.table or data.frame object.
+#'        If hoping update by reference, data.table is required.
+#' @param varlist Variable names needed to calculate lagged terms.
+#'        a bare name and a character vector are acceptable.
+#' @param by Names of variables used to grouping data.
+#' @param time a interger vector object for x, and a name or string for df. 
+#'        For x, time length must equal to x.
+#' @param n an integer.
+#' @param mode `NULL` or character string nameing an atomic mode or "list".
+#'        Default is `NULL`, update data.frame by reference using `:=` from 
+#'        `data.table`. `list`, `data.table`, `data.frame` and `vector` is
+#'        acceptable. If `mode = "vector"`, the length of `varlist` needed
+#'        to be one.
+#'
 #' @examples
 #' time = rep(2001:2006)
 #' x = sample(6)
 #' stlag(x, time)
+#'
+#' ts <- data.table(time = 2001:2009, x = 1:9, y = sample(letters, 9))
+#' stlag(ts, x, time = "time", mode = "list")
+#' stlag(ts, x, time)
+#' stlag(ts, y, time, n = -1L)
+#' xt <- data.frame(
+#'     id = rep(c("a", "b"), each = 5),
+#'     time = rep(2001:2005, 2),
+#'     x = 1:10,
+#'     y = sample(letters, 10, replace = TRUE),
+#'     z = sample(LETTERS, 10, replace = TRUE)
+#' )
+#' stxtset(xt, id, time)
+#' stlag(xt, x, n = -1L, mode = "list")
+#' stlag(setDT(xt), x)
+#' xt
+#' @export
+stlag <- function(x, ...) {
+    UseMethod("stlag")
+}
+
+#' @describeIn stlag Calculate lag term of vector
+#'
 #' @export
 stlag.default <- function(x, time, n = 1L) {
     if (is.list(x)) {
@@ -33,24 +62,7 @@ stlag.default <- function(x, time, n = 1L) {
     x[index]
 }
 
-#' stlag for data.frame
-#'
-#' @examples
-#' ts <- data.table(time = 2001:2009, x = 1:9, y = sample(letters, 9))
-#' stlag(ts, x, time = "time", mode = "list")
-#' stlag(ts, x, time)
-#' stlag(ts, y, time, n = -1L)
-#' xt <- data.frame(
-#'     id = rep(c("a", "b"), each = 5),
-#'     time = rep(2001:2005, 2),
-#'     x = 1:10,
-#'     y = sample(letters, 10, replace = TRUE),
-#'     z = sample(LETTERS, 10, replace = TRUE)
-#' )
-#' stxtset(xt, id, time)
-#' stlag(xt, x, n = -1L, mode = "list")
-#' stlag(setDT(xt), x)
-#' xt
+#' @describeIn stlag Calculate lag terms of data.frame/data.table variables
 #' 
 #' @export
 stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
@@ -109,6 +121,8 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
         stop("Some value in varlist isnot exist!")
     varlist <- setdiff(varlist, c(time, by))
     k.lag.varlist <- gen_lag_name(varlist, n)
+    if (length(varlist) != 1L && isTRUE(mode == "vector"))
+        stop("Mode vector is available when only one variable")
 
     # 在 data.table 上进行修改
     if (is.null(mode)) {
@@ -133,14 +147,15 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
              by = c(by), .SDcols = c(time, varlist)]
     }
     setnames(new.df, c(by, time, k.lag.varlist))
-
     out <- if (mode == "list") {
         as.list(new.df[, c(..k.lag.varlist)])
     } else if (mode == "data.frame") {
         setDF(new.df)
     } else if (mode == "data.table") {
         new.df
-    } else {
+    } else if (mode == "vector") {
+        new.df[[k.lag.varlist]]
+    }else {
         stop("invalid mode")
     }
     out

@@ -2,10 +2,66 @@
 % Please edit documentation in R/lag.R
 \name{stlag}
 \alias{stlag}
+\alias{stlag.default}
+\alias{stlag.data.frame}
 \title{Lag/Forward operator in time series}
 \usage{
-stlag(object, ...)
+stlag(x, ...)
+
+\method{stlag}{default}(x, time, n = 1L)
+
+\method{stlag}{data.frame}(df, varlist = NULL, time = NULL, by = NULL, n = 1L, mode = NULL)
+}
+\arguments{
+\item{x}{a vector.}
+
+\item{time}{a interger vector object for x, and a name or string for df.
+For x, time length must equal to x.}
+
+\item{n}{an integer.}
+
+\item{df}{a a data.table or data.frame object.
+If hoping update by reference, data.table is required.}
+
+\item{varlist}{Variable names needed to calculate lagged terms.
+a bare name and a character vector are acceptable.}
+
+\item{by}{Names of variables used to grouping data.}
+
+\item{mode}{\code{NULL} or character string nameing an atomic mode or "list".
+Default is \code{NULL}, update data.frame by reference using \verb{:=} from
+\code{data.table}. \code{list}, \code{data.table}, \code{data.frame} and \code{vector} is
+acceptable. If \code{mode = "vector"}, the length of \code{varlist} needed
+to be one.}
 }
 \description{
-Lag/Forward operator in time series
+Calculate the lag/forward terms of variables and vectors
+}
+\section{Methods (by class)}{
+\itemize{
+\item \code{default}: Calculate lag term of vector
+
+\item \code{data.frame}: Calculate lag terms of data.frame/data.table variables
+}}
+
+\examples{
+time = rep(2001:2006)
+x = sample(6)
+stlag(x, time)
+
+ts <- data.table(time = 2001:2009, x = 1:9, y = sample(letters, 9))
+stlag(ts, x, time = "time", mode = "list")
+stlag(ts, x, time)
+stlag(ts, y, time, n = -1L)
+xt <- data.frame(
+    id = rep(c("a", "b"), each = 5),
+    time = rep(2001:2005, 2),
+    x = 1:10,
+    y = sample(letters, 10, replace = TRUE),
+    z = sample(LETTERS, 10, replace = TRUE)
+)
+stxtset(xt, id, time)
+stlag(xt, x, n = -1L, mode = "list")
+stlag(setDT(xt), x)
+xt
 }

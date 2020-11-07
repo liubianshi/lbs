@@ -41,12 +41,12 @@ isempty <- function(x, na = NULL) {
 #' fill(x, maxgap = 5)
 #' @export
 fill = function(x, forward = TRUE, maxgap = Inf) {
-    if (!forward) x = rev(x)           # reverse x twice if carrying backward
-    ind = which(!isempty(x))           # get positions of empty values
-    if (isempty(x[1]))                 # if it begins with NA
-        ind = c(1,ind)                 # add first pos
-    rep_times = diff(                  # diffing the indices + length yields how often
-        c(ind, length(x) + 1) )          # they need to be repeated
+    if (!forward) x = rev(x)                 # reverse x twice if carrying backward
+    ind = which(!isempty(x))                 # get positions of empty values
+    if (isempty(x[1]))                       # if it begins with NA
+        ind = c(1, ind)                       # add first pos
+    rep_times = diff(c(ind, length(x) + 1))  # diffing the indices + length yields how often they need to be repeated
+
     if (maxgap < Inf) {
         exceed = rep_times - 1 > maxgap  # exceeding maxgap
         if (any(exceed)) {               # any exceed?

@@ -11,8 +11,8 @@ check_attr <- function(x, quietly = FALSE) {
                   "script_tag", "desc_file", "desc_tag", "log_file")
     var_attr <- c("label", "source", "description", "script_file",
                   "script_tag", "desc_file", "desc_tag", "log_file")
-
     attr_list <- if (is.data.frame(x)) tab_attr else var_attr
+
     attr_exist <- vector("character")
     for (a in attr_list) {
         t <- if (!is.null(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
@@ -56,12 +56,11 @@ check_attr <- function(x, quietly = FALSE) {
 #' DBI::dbDisconnect(con)
 #'}
 #' @export
-df_srdm <- function(df, database, table, file = "", # 
+df_srdm <- function(df, database, table, file = "",
                     replace = FALSE,
                     append = FALSE,
                     field.types = NULL) {
-    if (!is.data.frame(df))
-        stop("df must be a data frame")
+    if (!is.data.frame(df)) stop("df must be a data frame")
     if (!(length(database) == 1 && stringr::str_detect(database, "^\\w+$")))
         stop("database must be a valid name, match '^\\w+$'")
     if (!(length(table) == 1 && stringr::str_detect(table, "^\\w+$")))
@@ -77,9 +76,9 @@ df_srdm <- function(df, database, table, file = "", #
         stop("The main keys cannot meet the uniqueness requirement!")
 
     # check the integraty of all variables' attributes
-    vari_attr  <- lapply(df, check_attr, quietly = TRUE)
+    vari_attr <- lapply(df, check_attr, quietly = TRUE)
     for (i in seq_along(vari_attr)) {
-        if (!"label" %in% names(vari_attr[[i]]))
+        if (! "label" %in% names(vari_attr[[i]]))
             stop(names(vari_attr)[i], "'s label has not been set.")
 
         if (( !"source" %in% names(vari_attr[[i]]) ||
@@ -87,9 +86,7 @@ df_srdm <- function(df, database, table, file = "", #
             ) && !lbs::isempty(table_attr["source"])) {
             vari_attr[[i]]["source"] <- table_attr["source"]
         }
-        vari_attr[[i]]["name"]         <- paste(database, table,
-                                                names(vari_attr)[i],
-                                                sep = ":")
+        vari_attr[[i]]["name"]         <- paste(database, table, names(vari_attr)[i], sep = ":")
         vari_attr[[i]]["type"]         <- typeof(df[[i]])
         vari_attr[[i]]["number"]       <- length(df[[i]])
         vari_attr[[i]]["missNumber"]   <- sum(lbs::isempty(df[[i]]))
@@ -98,11 +95,6 @@ df_srdm <- function(df, database, table, file = "", #
 
     # Convert attributes vector to string, and then write it to a file
     srdm_fields <- c(vector2string(table_attr), sapply(vari_attr, vector2string))
-    #for (var in names(df)) {
-        #var_attr <- check_attr(df[[var]], quietly = TRUE)
-        #var_attr["name"] <- paste(database, table, var, sep = ":")
-        #srdm_fields <- c(srdm_fields, vector2string(var_attr))
-    #}
 
     if (file == "") {
         if ("crayon" %in% rownames(installed.packages()))

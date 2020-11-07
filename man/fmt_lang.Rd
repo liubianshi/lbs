@@ -12,7 +12,7 @@ fmt_lang(x, lang = "en_US")
 \item{lang}{a string. The default value is "zh_CN"}
 }
 \description{
-Delete non-ideographic text and standardize
+将小写字母转化为大写字母，全角符号转化为半角符号，并根据语言剔除无意义字符
 }
 \examples{
 x <- c('Ｂ  ', 'Ｃ０１２,,,３', 'cabc=dd')
