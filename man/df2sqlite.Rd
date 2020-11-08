@@ -4,15 +4,7 @@
 \alias{df2sqlite}
 \title{Write data frame to database}
 \usage{
-df2sqlite(
-  df,
-  database,
-  table,
-  keys,
-  replace = FALSE,
-  append = FALSE,
-  field.types = NULL
-)
+df2sqlite(df, database, table, keys, replace = FALSE, append = FALSE)
 }
 \arguments{
 \item{df}{A data frame of values (or coercible to data.frame).}
