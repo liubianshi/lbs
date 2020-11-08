@@ -35,6 +35,7 @@ check_attr <- function(x, quietly = FALSE) {
 #' @param df data.frame for archive
 #' @param database a string, name of database
 #' @param table a string, table name in database
+#'
 #' @examples
 #' \dontrun{
 #' df <- mtcars
@@ -56,23 +57,23 @@ check_attr <- function(x, quietly = FALSE) {
 #' DBI::dbDisconnect(con)
 #'}
 #' @export
-df_srdm <- function(df, database, table, file = "",
-                    replace = FALSE,
-                    append = FALSE,
-                    field.types = NULL) {
+df_srdm <- function(df, database, table, replace = FALSE,
+                    append = FALSE, wirte_repo = TRUE, verbose = FALSE) {
     if (!is.data.frame(df)) stop("df must be a data frame")
+    if (!is.data.table(df)) setDT(df)
     if (!(length(database) == 1 && stringr::str_detect(database, "^\\w+$")))
         stop("database must be a valid name, match '^\\w+$'")
     if (!(length(table) == 1 && stringr::str_detect(table, "^\\w+$")))
         stop("table must be a valid name, match '^\\w+$'")
+
 
     # check the integraty of data frame's attributes
     table_attr <- check_attr(df, quietly = TRUE)
     table_attr["name"] = paste(database, table, sep = ":")
     if (!"keys" %in% names(table_attr))
         stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
-    keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-    if (subset(df, select = keys) %>% duplicated() %>% any())
+    keys <- table_attr["keys"]
+    if (anyDuplicated(df[, ..keys]))
         stop("The main keys cannot meet the uniqueness requirement!")
 
     # check the integraty of all variables' attributes
@@ -94,9 +95,10 @@ df_srdm <- function(df, database, table, file = "",
     }
 
     # Convert attributes vector to string, and then write it to a file
-    srdm_fields <- c(vector2string(table_attr), sapply(vari_attr, vector2string))
+    srdm_fields <- c(vector2string(table_attr),
+                     sapply(vari_attr, vector2string))
 
-    if (file == "") {
+    if (isTRUE(verbose)) {
         if ("crayon" %in% rownames(installed.packages()))
             write(crayon::red$bold("Attributes information:"), "")
         else
@@ -104,30 +106,31 @@ df_srdm <- function(df, database, table, file = "",
 
         write(paste0("srdm\t", srdm_fields), "")
         write("----------------------------------------", "")
-    } else {
-        write("Attributes information:", file)
-        write(paste0("srdm\t", srdm_fields), file, append = TRUE)
     }
 
-    # save data to database
+    file <- tempfile("srdm")
+    write("Attributes information:", file)
+    write(paste0("srdm\t", srdm_fields), file, append = TRUE)
+
+    message("Began writing data to database")
     insert_result <- tryCatch(
-        df2sqlite(df, database, table, keys, replace, append, field.types),
+        df2sqlite(df, database, table, keys, replace, append),
         error = function(cond) {
             message(paste("File failed to written to", database))
             message("Here's the original error message:")
-            message(cond)
-            return(NA)
-        },
-        warning = function(cond) {
-            message(paste("Warnings were generated when writing to", database))
-            message("Here's the original warning message:")
-            message(cond)
-            return(NULL)
-        },
-        finally={
-            message(paste("Data has been successfully written to", database))
+            stop(cond)
         }
     )
+    message("Data Written Successfully!")
+
+    if (isTRUE(wirte_repo && insert_result)) {
+        if (isTRUE(replace)) {
+            system(paste("srdm file --replace", file), ignore.stdout = TRUE)
+        } else {
+            system(paste("srdm file", file), ignore.stdout = TRUE)
+        }
+        message("Data information has been writern to data_repo!")
+    }
 
     invisible(TRUE)
 }
@@ -175,15 +178,18 @@ vector2string <- function(l) {
 #'}
 #' @export
 df2sqlite <- function(df, database, table, keys,
-                      replace = FALSE, append = FALSE, field.types = NULL ) {
-    database <- if (Sys.getenv("DATA_ARCHIVE") != "")
-                    file.path(Sys.getenv("DATA_ARCHIVE"), database)
-                else
-                    file.path(Sys.getenv("HOME"), "Data", "DBMS", database)
+                      replace = FALSE, append = FALSE) {
+    # 生成数据库文件
+    database <- if (Sys.getenv("DATA_ARCHIVE") != "") {
+        file.path(Sys.getenv("DATA_ARCHIVE"), database)
+    } else {
+        file.path(Sys.getenv("HOME"), "Data", "DBMS", database)
+    }
 
+    # 在文件夹不存在的情况下创建新的文件夹
     if (!dir.exists(dirname(database)))
         tryCatch(
-            dir.create(dirname(database), recursive = TRUE ),
+            dir.create(dirname(database), recursive = TRUE),
             error = function(cond) {
                 message(cond)
                 return(FALSE)
@@ -196,7 +202,7 @@ df2sqlite <- function(df, database, table, keys,
 
     database     <- paste0(database, ".sqlite")
     sth_create   <- gettextf("CREATE TABLE %s (%s, PRIMARY KEY(%s))", table,
-                             paste(names(df), collapse = ", "),
+                             paste(dfname2sql(df), collapse = ", "),
                              paste(keys, collapse = ", "))
     sth_back     <- gettextf("ALTER TABLE %s RENAME TO %s_bck", table, table)
     sth_drop_bck <- gettextf("DROP TABLE %s_bck", table)
@@ -204,11 +210,12 @@ df2sqlite <- function(df, database, table, keys,
     sth_restore  <- gettextf("ALTER TABLE %s_bck RENAME TO %s", table, table)
 
     con          <- DBI::dbConnect(RSQLite::SQLite(), database)
-    table_exists <- table %in% DBI::dbListTables(con)
+    on.exit(DBI::dbDisconnect(con), add = TRUE)
 
+    table_exists <- table %in% DBI::dbListTables(con)
     if (table_exists) {
         if (!replace && !append)
-            stop(paste("Table", table, "is exists!"))
+            return(NA)
         if (replace) {
             DBI::dbExecute(con, sth_back)
             DBI::dbExecute(con, sth_create)
@@ -217,6 +224,7 @@ df2sqlite <- function(df, database, table, keys,
         DBI::dbExecute(con, sth_create)
     }
 
+
     tryCatch(
         DBI::dbAppendTable(con, table, df),
         error = function(cond) {
@@ -224,22 +232,34 @@ df2sqlite <- function(df, database, table, keys,
                 DBI::dbExecute(con, sth_drop_new)
                 DBI::dbExecute(con, sth_restore)
             }
-            if (!table_exists) 
+            if (!table_exists) {
                 DBI::dbExecute(con, sth_drop_new)
+            }
             message("Data frame failed to written to ", database)
             message("Here's the original error message:")
-            message(cond, "\n")
-            return(NA)
-        },
-        warning = function(cond) {
-            message(cond)
-        },
-        finally = {
-            if (table_exists && replace)
-                DBI::dbExecute(con, sth_drop_bck)
-            DBI::dbDisconnect(con)
+            stop(cond, "\n")
         }
     )
+
+    if (table_exists && replace) DBI::dbExecute(con, sth_drop_bck)
+    message("Data frame has been written successfully")
     invisible(TRUE)
 }
+
+dfname2sql <- function(df) {
+    name2sql <- function(name) {
+        if (is.integer(df[[name]])) {
+            paste(name, "INTEGER")
+        } else if (is.numeric(df[[name]])) {
+            paste(name, "REAL")
+        } else if (is.character(df[[name]])) {
+            paste(name, "TEXT")
+        } else {
+            paste(name, "NONE")
+        }
+    }
+    purrr::map_chr(names(df), name2sql)
+}
+
+
 

@@ -8,10 +8,10 @@ df_srdm(
   df,
   database,
   table,
-  file = "",
   replace = FALSE,
   append = FALSE,
-  field.types = NULL
+  wirte_repo = TRUE,
+  verbose = FALSE
 )
 }
 \arguments{
