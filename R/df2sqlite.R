@@ -33,12 +33,6 @@ check_attr <- function(x, quietly = FALSE) {
 #' requirements of SRDM, and output the basic information of the data to
 #' standard output
 #' @param df data.frame for archive
-#' @param database a string, name of database
-#' @param table a string, table name in database
-#'
-#' @examples
-#' \dontrun{
-#' df <- mtcars
 #' df$ID <- seq_len(nrow(df))
 #' attr(df, "keys") = "ID"
 #' for (i in seq_along(df))
@@ -130,6 +124,11 @@ df_srdm <- function(df, database, table, replace = FALSE,
             system(paste("srdm file", file), ignore.stdout = TRUE)
         }
         message("Data information has been writern to data_repo!")
+    }
+
+    if (isTRUE(wirte_repo && insert_result)) {
+        if (isTRUE(replace)) system(paste("srdm file --replace", file))
+            else system(paste("srdm file", file))
     }
 
     invisible(TRUE)
