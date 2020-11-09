@@ -127,10 +127,17 @@ df_srdm <- function(df, database, table, replace = FALSE,
     }
 
     if (isTRUE(wirte_repo && insert_result)) {
-        if (isTRUE(replace)) system(paste("srdm file --replace", file))
-            else system(paste("srdm file", file))
+        if (isTRUE(replace)) {
+            system(paste("srdm file --replace", file))
+        } else if(isTRUE(append)) {
+            srdm_exist <- length(system(
+                gettextf("srdm search --table --name=%s:%s", database, table),
+                intern = TRUE)) == 0
+            if (isTRUE(srdm_exist)) system(paste("srdm file", file))
+        } else {
+            system(paste("srdm file", file))
+        }
     }
-
     invisible(TRUE)
 }
 
