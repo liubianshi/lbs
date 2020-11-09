@@ -54,7 +54,6 @@ check_attr <- function(x, quietly = FALSE) {
 df_srdm <- function(df, database, table, replace = FALSE,
                     append = FALSE, wirte_repo = TRUE, verbose = FALSE) {
     if (!is.data.frame(df)) stop("df must be a data frame")
-    if (!is.data.table(df)) setDT(df)
     if (!(length(database) == 1 && stringr::str_detect(database, "^\\w+$")))
         stop("database must be a valid name, match '^\\w+$'")
     if (!(length(table) == 1 && stringr::str_detect(table, "^\\w+$")))
@@ -67,7 +66,7 @@ df_srdm <- function(df, database, table, replace = FALSE,
     if (!"keys" %in% names(table_attr))
         stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
     keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-    if (anyDuplicated(df[, ..keys]))
+    if (anyDuplicated(subset(setDT(df)[, ..keys]))
         stop("The main keys cannot meet the uniqueness requirement!")
 
     # check the integraty of all variables' attributes
