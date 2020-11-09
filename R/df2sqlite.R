@@ -250,7 +250,7 @@ dfname2sql <- function(df) {
         if (is.integer(df[[name]])) {
             paste(name, "INTEGER")
         } else if (is.numeric(df[[name]])) {
-            paste(name, "REAL")
+            paste(name, "NUMERIC")
         } else if (is.character(df[[name]])) {
             paste(name, "TEXT")
         } else {
