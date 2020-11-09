@@ -66,7 +66,7 @@ df_srdm <- function(df, database, table, replace = FALSE,
     table_attr["name"] = paste(database, table, sep = ":")
     if (!"keys" %in% names(table_attr))
         stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
-    keys <- table_attr["keys"]
+    keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
     if (anyDuplicated(df[, ..keys]))
         stop("The main keys cannot meet the uniqueness requirement!")
 
