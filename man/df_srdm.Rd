@@ -16,34 +16,9 @@ df_srdm(
 }
 \arguments{
 \item{df}{data.frame for archive}
-
-\item{database}{a string, name of database}
-
-\item{table}{a string, table name in database}
 }
 \description{
 \emph{Personal use!}. Check whether the data frame meets the
 requirements of SRDM, and output the basic information of the data to
 standard output
-}
-\examples{
-\dontrun{
-df <- mtcars
-df$ID <- seq_len(nrow(df))
-attr(df, "keys") = "ID"
-for (i in seq_along(df))
-    attr(df[[i]], "label") = paste("label:", names(df)[i])
-fil <- tempfile("srdm")
-df_srdm(df, "test", "mtcars", file = fil, replace = TRUE)
-if (interactive()) file.show(fil)
-database <- file.path(
-    ifelse(Sys.getenv("DATA_ARCHIVE") != "",
-        Sys.getenv("DATA_ARCHIVE"), "~/Data/DBMS"
-    ), "test.sqlite"
-)
-con <- DBI::dbConnect(RSQLite::SQLite(), database)
-DBI::dbListTables(con)
-DBI::dbGetQuery(con, "SELECT * FROM mtcars WHERE ID <= 10")
-DBI::dbDisconnect(con)
-}
 }

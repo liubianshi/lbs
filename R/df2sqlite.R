@@ -33,6 +33,7 @@ check_attr <- function(x, quietly = FALSE) {
 #' requirements of SRDM, and output the basic information of the data to
 #' standard output
 #' @param df data.frame for archive
+#' @examples
 #' df$ID <- seq_len(nrow(df))
 #' attr(df, "keys") = "ID"
 #' for (i in seq_along(df))
@@ -66,7 +67,8 @@ df_srdm <- function(df, database, table, replace = FALSE,
     if (!"keys" %in% names(table_attr))
         stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
     keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-    if (anyDuplicated(subset(setDT(df)[, ..keys]))
+    message(keys)
+    if (anyDuplicated(setDT(df)[, ..keys]))
         stop("The main keys cannot meet the uniqueness requirement!")
 
     # check the integraty of all variables' attributes
