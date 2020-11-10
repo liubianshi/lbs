@@ -33,6 +33,11 @@ check_attr <- function(x, quietly = FALSE) {
 #' requirements of SRDM, and output the basic information of the data to
 #' standard output
 #' @param df data.frame for archive
+#' @param database valid database name
+#' @param table valid table name
+#' @param replace logical value. Default is FALSE 
+#' @param append logical value. Default is FALSE 
+#' @param write_repo logical value. Weather write data infomation to SRMD repo. Default is TURE.
 #' @examples
 #' df$ID <- seq_len(nrow(df))
 #' attr(df, "keys") = "ID"
@@ -50,10 +55,9 @@ check_attr <- function(x, quietly = FALSE) {
 #' DBI::dbListTables(con)
 #' DBI::dbGetQuery(con, "SELECT * FROM mtcars WHERE ID <= 10")
 #' DBI::dbDisconnect(con)
-#'}
 #' @export
 df_srdm <- function(df, database, table, replace = FALSE,
-                    append = FALSE, wirte_repo = TRUE, verbose = FALSE) {
+                    append = FALSE, write_repo = TRUE) {
     if (!is.data.frame(df)) stop("df must be a data frame")
     if (!(length(database) == 1 && stringr::str_detect(database, "^\\w+$")))
         stop("database must be a valid name, match '^\\w+$'")
@@ -67,7 +71,6 @@ df_srdm <- function(df, database, table, replace = FALSE,
     if (!"keys" %in% names(table_attr))
         stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
     keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-    message(keys)
     if (anyDuplicated(setDT(df)[, ..keys]))
         stop("The main keys cannot meet the uniqueness requirement!")
 
@@ -93,16 +96,6 @@ df_srdm <- function(df, database, table, replace = FALSE,
     srdm_fields <- c(vector2string(table_attr),
                      sapply(vari_attr, vector2string))
 
-    if (isTRUE(verbose)) {
-        if ("crayon" %in% rownames(installed.packages()))
-            write(crayon::red$bold("Attributes information:"), "")
-        else
-            write("Attributes information:", "")
-
-        write(paste0("srdm\t", srdm_fields), "")
-        write("----------------------------------------", "")
-    }
-
     file <- tempfile("srdm")
     write("Attributes information:", file)
     write(paste0("srdm\t", srdm_fields), file, append = TRUE)
@@ -118,25 +111,16 @@ df_srdm <- function(df, database, table, replace = FALSE,
     )
     message("Data Written Successfully!")
 
-    if (isTRUE(wirte_repo && insert_result)) {
+    if (isTRUE(write_repo && insert_result)) {
         if (isTRUE(replace)) {
             system(paste("srdm file --replace", file), ignore.stdout = TRUE)
-        } else {
-            system(paste("srdm file", file), ignore.stdout = TRUE)
-        }
-        message("Data information has been writern to data_repo!")
-    }
-
-    if (isTRUE(wirte_repo && insert_result)) {
-        if (isTRUE(replace)) {
-            system(paste("srdm file --replace", file))
         } else if(isTRUE(append)) {
             srdm_exist <- length(system(
                 gettextf("srdm search --table --name=%s:%s", database, table),
                 intern = TRUE)) == 0
-            if (isTRUE(srdm_exist)) system(paste("srdm file", file))
+            if (isTRUE(srdm_exist)) system(paste("srdm file", file), ignore.stdout = TRUE)
         } else {
-            system(paste("srdm file", file))
+            system(paste("srdm file", file), ignore.stdout = TRUE)
         }
     }
     invisible(TRUE)

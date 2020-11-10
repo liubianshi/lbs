@@ -9,6 +9,7 @@ getDataSQLite(
   table,
   varlist = NULL,
   condition = NULL,
+  path = NULL,
   and = TRUE,
   limit = NULL
 )

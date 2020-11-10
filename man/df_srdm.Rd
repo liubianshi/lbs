@@ -10,15 +10,42 @@ df_srdm(
   table,
   replace = FALSE,
   append = FALSE,
-  wirte_repo = TRUE,
-  verbose = FALSE
+  write_repo = TRUE
 )
 }
 \arguments{
 \item{df}{data.frame for archive}
+
+\item{database}{valid database name}
+
+\item{table}{valid table name}
+
+\item{replace}{logical value. Default is FALSE}
+
+\item{append}{logical value. Default is FALSE}
+
+\item{write_repo}{logical value. Weather write data infomation to SRMD repo. Default is TURE.}
 }
 \description{
 \emph{Personal use!}. Check whether the data frame meets the
 requirements of SRDM, and output the basic information of the data to
 standard output
+}
+\examples{
+df$ID <- seq_len(nrow(df))
+attr(df, "keys") = "ID"
+for (i in seq_along(df))
+    attr(df[[i]], "label") = paste("label:", names(df)[i])
+fil <- tempfile("srdm")
+df_srdm(df, "test", "mtcars", file = fil, replace = TRUE)
+if (interactive()) file.show(fil)
+database <- file.path(
+    ifelse(Sys.getenv("DATA_ARCHIVE") != "",
+        Sys.getenv("DATA_ARCHIVE"), "~/Data/DBMS"
+    ), "test.sqlite"
+)
+con <- DBI::dbConnect(RSQLite::SQLite(), database)
+DBI::dbListTables(con)
+DBI::dbGetQuery(con, "SELECT * FROM mtcars WHERE ID <= 10")
+DBI::dbDisconnect(con)
 }
