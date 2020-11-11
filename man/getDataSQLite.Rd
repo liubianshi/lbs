@@ -7,7 +7,7 @@
 getDataSQLite(
   database,
   table,
-  varlist = NULL,
+  var = NULL,
   condition = NULL,
   path = NULL,
   and = TRUE,
@@ -19,7 +19,7 @@ getDataSQLite(
 
 \item{table}{Table name}
 
-\item{varlist}{A character vector consist of column names.}
+\item{var}{A character vector consist of column names.}
 
 \item{condition}{A character vector consist of SQL conditions}
 

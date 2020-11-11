@@ -19,6 +19,10 @@ Depends:
     data.table,
     magrittr,
 Imports:
+    rlang,
+    purrr,
+    DBI,
+    RSQLite,
     stringr (>= 1.0),
 Suggests:
     testthat,

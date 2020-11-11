@@ -3,13 +3,13 @@
 #' @description 从 SQLite 数据库中获取数据表
 #' @param database SQLite database path
 #' @param table Table name
-#' @param varlist A character vector consist of column names.
+#' @param var A character vector consist of column names.
 #' @param condition A character vector consist of SQL conditions
 #' @param and Logical value. Way of combine conditions
 #' @param limit A interger. SQL Limit.
 #' @return A data.frame
 #' @export
-getDataSQLite <- function(database, table, varlist = NULL,
+getDataSQLite <- function(database, table, var = NULL,
                        condition = NULL, path = NULL, and = TRUE, limit = NULL) {
     if (is.null(path)) {
         path <- if (Sys.getenv("DATA_ARCHIVE") != "") {
@@ -25,10 +25,10 @@ getDataSQLite <- function(database, table, varlist = NULL,
     tableList <- DBI::dbListTables(con)
     if (!isTRUE(table %in% tableList)) stop("table isnot exist")
 
-    if (is.null(varlist))  {
+    if (is.null(var))  {
         varlist   <-  "*"
     } else {
-        varlist <- paste(varlist, collapse = ",")
+        varlist <- paste(var, collapse = ",")
     }
 
     if (is.null(condition)) {
@@ -36,32 +36,31 @@ getDataSQLite <- function(database, table, varlist = NULL,
     } else {
         condition <- paste0("(", condition, ")")
         if (isTRUE(and)) {
-            condition <- paste(condition, collapse = " AND ")
+            condition <- paste(condition, collapse = " AND \n       ")
         } else if (isFALSE(and)) {
-            condition <- paste(condtion, collapse = " OR ")
+            condition <- paste(condtion, collapse = " OR \n       ")
         } else {
             stop("param 'and' only accept TRUE or FALSE") 
         }
     }
 
     if (!is.null(limit))
-        condition <- paste(condition, "LIMIT", limit)
+        condition <- paste(condition, "\n LIMIT", limit)
 
-    sel <- gettextf("SELECT %s FROM %s WHERE %s", varlist, table, condition)
-    message(sel)
+    sel <- gettextf("SELECT %s\n  FROM %s\n WHERE %s", varlist, table, condition)
+    message("===============SQL===============\n",
+            sel, '\n=================================')
 
-    data <- DBI::dbGetQuery(con, sel)
-    info <- rbindlist(lapply(names(data), getdatainfo,
-                   database = database, table = table))
+    data <- DBI::dbGetQuery(con, sel) %>% setDT()
+    info <- getdatainfo(database, table, var)
     invisible(list(data = data, info = info))
 }
 
 #' Get infomation form data.repo
 #'
-#' @description 从数据管理库获取数据信息
+#' @description get data information from srdm repo
 #' @inheritParams getDataSQLite
-#' @return 如果查询变量的信息，那么返回一个单行数据框，
-#'         如果查询表格信息，那么返回表格本身信息和所有变量信息构成的列表
+#' @return return a data.frame contain data info
 #' @export
 getdatainfo <- function(database, table, var = NULL) {
     database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
@@ -69,35 +68,61 @@ getdatainfo <- function(database, table, var = NULL) {
     on.exit(DBI::dbDisconnect(con))
 
     if (is.null(var)) {
-        sel_table <- gettextf("SELECT * FROM data_table WHERE name == '%s'",
-                              paste(database, table, sep = ":"))
-        sel_varlist <- gettextf("SELECT * FROM data_record WHERE name LIKE '%s:%%'",
-                                paste(database, table, sep = ":"))
-        out <- list(
-            table = DBI::dbGetQuery(con, sel_table),
-            varlist = DBI::dbGetQuery(con, sel_varlist)
+        sel <- gettextf("SELECT * FROM data_table WHERE name IN (\n\t%s)",
+                        paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t"))
+    } else if (isTRUE(var %in% c("all", "*"))) {
+        if (!(length(database) == 1 && length(table) == 1)) 
+            stop("Query all variables only allowed in one table")
+        sel <- gettextf("SELECT * FROM data_record WHERE name LIKE %s",
+            paste0("'", database, ":", table, ":%'")
         )
     } else {
-        sel <- gettextf("SELECT * FROM data_record WHERE name == '%s'",
-                        paste(database, table, var, sep = ":"))
-        out <- DBI::dbGetQuery(con, sel)
+        sel <- gettextf("SELECT * FROM data_record WHERE name IN (\n\t%s)",
+                        paste(paste0("'", database, ":", table, ":", var, "'"), collapse = ",\n\t"))
     }
-    invisible(out)
+    #message("SQL Query Sentence:\n", sel)
+    out <- DBI::dbGetQuery(con, sel) %>% setDT()
+    out
 }
 
-#' get table names from srmd_repo
+#' get all variables' basic infomation in srmd repo
 #'
-#' @return 返回 SRDM 库中的所有数据库、表格和变量名称
+#' @return All variable name and label stored in srdm repo
 #' @export
-getallname <- function() {
+getallvar <- function() {
     database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 
-    varnames <- DBI::dbGetQuery(con, "SELECT name from data_record")$name %>%
-        stringr::str_split(":")
+    vars         <- DBI::dbGetQuery(con, "SELECT name,label from data_record")
+    varnames     <- vars$name %>% stringr::str_split(":")
+    varLabels    <- vars$label
     databaseList <- purrr::map_chr(varnames, 1)
-    tableList <- purrr::map_chr(varnames, 2)
-    varList <- purrr::map_chr(varnames, 3) 
-    invisible(data.table(database = databaseList, table = tableList, variable = varList))
+    tableList    <- purrr::map_chr(varnames, 2)
+    varList      <- purrr::map_chr(varnames, 3) 
+    invisible(data.table(database = databaseList,
+                         table = tableList,
+                         variable = varList,
+                         label = varLabels
+                         ))
+}
+
+#' get all tables' basic information from srmd_repo
+#'
+#' @return All tables name and label stored in srdm repo
+#' @export
+getalltable <- function() {
+    database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
+    con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
+    on.exit(DBI::dbDisconnect(con))
+
+    tables       <- DBI::dbGetQuery(con, "SELECT name,keys,description from data_table")
+    tablenames   <- tables$name %>% stringr::str_split(":")
+    databaseList <- purrr::map_chr(tablenames, 1)
+    tableList    <- purrr::map_chr(tablenames, 2)
+    setDT(tables)[, `:=`(database = ..databaseList,
+                         table    = ..tableList,
+                         name     = NULL)]
+    setcolorder(tables, c("database", "table"))
+    tables
 }

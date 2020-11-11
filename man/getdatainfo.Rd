@@ -10,7 +10,12 @@ getdatainfo(database, table, var = NULL)
 \item{database}{SQLite database path}
 
 \item{table}{Table name}
+
+\item{var}{A character vector consist of column names.}
+}
+\value{
+return a data.frame contain data info
 }
 \description{
-从数据管理库获取数据信息
+get data information from srdm repo
 }
