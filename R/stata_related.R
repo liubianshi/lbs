@@ -51,7 +51,7 @@ stlabel <- function(df, variable, attribute, type = "label") {
     for (i in seq_along(variable)) {
         vari <- variable[i]
         attr <- attribute[i]
-        setattr(df[[variable]], type, attr)
+        setattr(df[[vari]], type, attr)
     }
 }
 

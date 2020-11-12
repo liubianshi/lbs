@@ -10,7 +10,8 @@
 #' @return A data.frame
 #' @export
 getDataSQLite <- function(database, table, var = NULL,
-                       condition = NULL, path = NULL, and = TRUE, limit = NULL) {
+                       condition = NULL, path = NULL,
+                       and = TRUE, limit = NULL, noinfo = FALSE) {
     if (is.null(path)) {
         path <- if (Sys.getenv("DATA_ARCHIVE") != "") {
             file.path(Sys.getenv("DATA_ARCHIVE"), paste0(database, ".sqlite"))
@@ -26,6 +27,7 @@ getDataSQLite <- function(database, table, var = NULL,
     if (!isTRUE(table %in% tableList)) stop("table isnot exist")
 
     if (is.null(var))  {
+        var <- "*"
         varlist   <-  "*"
     } else {
         varlist <- paste(var, collapse = ",")
@@ -52,8 +54,15 @@ getDataSQLite <- function(database, table, var = NULL,
             sel, '\n=================================')
 
     data <- DBI::dbGetQuery(con, sel) %>% setDT()
+
     info <- getdatainfo(database, table, var)
-    invisible(list(data = data, info = info))
+    stlabel(data, names(data), info[, label])
+
+    if (isTRUE(noinfo)) {
+        data
+    } else {
+        list(data = data, info = info)
+    }
 }
 
 #' Get infomation form data.repo
@@ -123,6 +132,6 @@ getalltable <- function() {
     setDT(tables)[, `:=`(database = ..databaseList,
                          table    = ..tableList,
                          name     = NULL)]
-    setcolorder(tables, c("database", "table"))
+    data.table::setcolorder(tables, c("database", "table"))
     tables
 }

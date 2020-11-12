@@ -191,6 +191,8 @@ df2sqlite <- function(df, database, table, keys,
             }
         )
 
+    if (any(length(database), length(table)) != 1)
+        stop("Only one table can be writen in one database.")
     database     <- paste0(database, ".sqlite")
     sth_create   <- gettextf("CREATE TABLE %s (%s, PRIMARY KEY(%s))", table,
                              paste(dfname2sql(df), collapse = ", "),
@@ -203,7 +205,7 @@ df2sqlite <- function(df, database, table, keys,
     con          <- DBI::dbConnect(RSQLite::SQLite(), database)
     on.exit(DBI::dbDisconnect(con), add = TRUE)
 
-    table_exists <- table %in% DBI::dbListTables(con)
+    table_exists <- toupper(table) %in% toupper(DBI::dbListTables(con))
     if (table_exists) {
         if (!replace && !append)
             return(NA)
@@ -214,7 +216,6 @@ df2sqlite <- function(df, database, table, keys,
     } else {
         DBI::dbExecute(con, sth_create)
     }
-
 
     tryCatch(
         DBI::dbAppendTable(con, table, df),
