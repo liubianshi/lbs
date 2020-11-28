@@ -31,16 +31,14 @@ stxtcheck <- function(df) {
 #' @param time variable name as panel time
 #' @export
 stxtset <- function(df, id, time) {
-    id_name   <- gsub("[\"']", "", deparse(substitute(id)))
-    time_name <- gsub("[\"']", "", deparse(substitute(time)))
-    if (! id_name %in% names(df))   id_name <- id
-    if (! time_name %in% names(df)) time_name <- time
+    id <- rlang::enquo(id)
+    time <- rlang::enquo(time)
+    id_time_name <- get_df_names(df, !!id, !!time)
+    setattr(df, "xt", id_time_name)
 
-    setattr(df, "xt", c(id_name, time_name))
     check_result <- stxtcheck(df)
     if (isFALSE(check_result[[1]])) {
         stop("panel set failed:\n", check_result[[2]])
     }
     invisible(df)
 }
-

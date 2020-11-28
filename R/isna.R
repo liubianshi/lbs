@@ -20,7 +20,8 @@
 #' isempty(y, c(0, 99))
 #' @export
 isempty <- function(x, na = NULL) {
-    if (length(x) == 0) return(x)
+    if (length(x) == 0) return(TRUE)
+    if (is.null(x)) return(TRUE)
     empty_x <- is.na(x) | x %in% na
     if (is.character(x))
         empty_x <- empty_x | stringr::str_detect(x, "^\\s*$")

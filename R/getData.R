@@ -11,29 +11,25 @@
 #' @export
 getDataSQLite <- function(database, table, var = NULL,
                        condition = NULL, path = NULL,
-                       and = TRUE, limit = NULL, noinfo = FALSE) {
-    if (is.null(path)) {
-        path <- if (Sys.getenv("DATA_ARCHIVE") != "") {
-            file.path(Sys.getenv("DATA_ARCHIVE"), paste0(database, ".sqlite"))
-        } else {
-            file.path(Sys.getenv("HOME"), "Data", "DBMS",
-                      paste0(database, ".sqlite"))
-        }
+                       and = TRUE, limit = NULL, noinfo = TRUE) {
+    if (isempty(path)) {
+        path <- file.path(Sys.getenv("DATA_ARCHIVE"),
+                          paste0(database, ".sqlite"))
     }
     con <- DBI::dbConnect(RSQLite::SQLite(), path)
     on.exit(DBI::dbDisconnect(con))
 
     tableList <- DBI::dbListTables(con)
-    if (!isTRUE(table %in% tableList)) stop("table isnot exist")
+    stopifnot(isTRUE(table %in% tableList))
 
-    if (is.null(var))  {
+    if (isempty(var))  {
         var <- "*"
-        varlist   <-  "*"
+        varlist <-  "*"
     } else {
         varlist <- paste(var, collapse = ",")
     }
 
-    if (is.null(condition)) {
+    if (isempty(condition)) {
         condition <- "TRUE"
     } else {
         condition <- paste0("(", condition, ")")
@@ -46,7 +42,7 @@ getDataSQLite <- function(database, table, var = NULL,
         }
     }
 
-    if (!is.null(limit))
+    if (!isempty(limit))
         condition <- paste(condition, "\n LIMIT", limit)
 
     sel <- gettextf("SELECT %s\n  FROM %s\n WHERE %s", varlist, table, condition)
@@ -76,7 +72,7 @@ getdatainfo <- function(database, table, var = NULL) {
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 
-    if (is.null(var)) {
+    if (isempty(var)) {
         sel <- gettextf("SELECT * FROM data_table WHERE name IN (\n\t%s)",
                         paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t"))
     } else if (isTRUE(var %in% c("all", "*"))) {

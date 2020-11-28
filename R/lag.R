@@ -76,16 +76,16 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     }
 
     # 变量名裸字转换为变量名向量
-    if (valid_name(substitute(time), df))
-        time <- deparse(substitute(time))
-    if (valid_name(substitute(varlist), df))
-        varlist <- deparse(substitute(varlist))
-    if (valid_name(substitute(by), df))
-        by <- deparse(substitute(by))
+    time     <- rlang::enquo(time)
+    time     <- get_df_names(df, !!time)
+    varlist  <- rlang::enquo(varlist)
+    varlist  <- get_df_names(df, !!varlist)
+    by       <- rlang::enquo(by)
+    by       <- get_df_names(df, !!by)
 
     # 时间变量的验证
-    if (is.null(time)) {
-        if (is.null(by)) {
+    if (isempty(time)) {
+        if (isempty(by)) {
             if (stxtcheck(df)[[1]]) {
                 xt   <- attr(df, "xt")
                 by   <- xt[1]
@@ -102,31 +102,17 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     if (isempty(time))           stop("Time variable setting error")
     if (length(time) != 1)       stop("only one time variable is allowed")
     if (!is.integer(df[[time]])) stop("time variable must point to an integer vector")
-    if (is.integer(time))  time <- names_df[time]
-
-    # 面板 ID 的验证
-    if (isFALSE(is.null(by) || (is.character(by) && all(by %in% names_df)))) {
-        stop("by need to be NULL or a character vector consists of valid names")
-    }
 
     # 待求 Lag 的变量
-    varlist <- if (is.null(varlist)) {
-        names_df
-    } else if (is.integer(varlist)) {
-        names_df[varlist]
-    } else {
-        varlist
-    }
-    if (isFALSE(all(varlist %in% names_df)))
-        stop("Some value in varlist isnot exist!")
+    if (isempty(varlist)) varlist <- names_df
     varlist <- setdiff(varlist, c(time, by))
     k.lag.varlist <- gen_lag_name(varlist, n)
     if (length(varlist) != 1L && isTRUE(mode == "vector"))
         stop("Mode vector is available when only one variable")
 
     # 在 data.table 上进行修改
-    if (is.null(mode)) {
-        if (is.null(by)) {
+    if (isempty(mode)) {
+        if (isempty(by)) {
             df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
                                            .SD[[1]], ..n),
                 .SDcols = c(time, varlist)]
@@ -139,7 +125,7 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     }
 
     # 输出制定模式的结果
-    new.df <- if (is.null(by)) {
+    new.df <- if (isempty(by)) {
         df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
              .SDcols = c(time, varlist)]
     } else {
@@ -177,10 +163,4 @@ gen_lag_name <- function(names, n) {
     lag_name
 }
 
-valid_name <- function(expr, df) {
-    if (is.symbol(expr) && deparse(expr) %in% names(df))
-        TRUE
-    else
-        FALSE
-}
 

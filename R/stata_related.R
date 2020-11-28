@@ -34,25 +34,11 @@ stdes <- function(df) {  #> 载入自定义函数
 #' @param variable one bare variabel name or character vector of variable names
 #' @param attributes numeric or character vector, length must equal variables
 #' @export
-stlabel <- function(df, variable, attribute, type = "label") {
-    nn <- deparse(substitute(variable))
-    if (!is.data.frame(df)) 
-       stop("df must be a data.table") 
-    if (nn %in% names(df)) 
-        variable <- nn 
-    if (any(! variable %in% names(df)))
-        stop("some variable not exist")
-    if (length(variable) != length(attribute))
-        stop("'variable' number must equal 'attribute' number")
-
-    if (length(type) != 1 || !is.character(type))
-        stop("attribute type must be one string")
-
-    for (i in seq_along(variable)) {
-        vari <- variable[i]
-        attr <- attribute[i]
-        setattr(df[[vari]], type, attr)
-    }
+stlabel <- function(df, var, attr, type = "label") {
+    var <- rlang::enquo(var)
+    varlist <- get_df_names(df, !!var)
+    stopifnot(length(varlist) == length(attr))
+    purrr::walk2(varlist, attr, ~ setattr(df[[.x]], name = type, .y))
 }
 
 #' format number in a reasonable way
@@ -141,35 +127,29 @@ stsum.default <- function(x, na.rm = TRUE, format = TRUE,
 stsum.data.frame <- function(df, variable, label = NULL, na.rm = TRUE, 
                               format = TRUE, digits = getOption("digits"),
                               nsmall = 3, width = 7, big.mark = ",") {
-    nn <- deparse(substitute(variable))
-    if (!is.data.frame(df)) 
-       stop("df must be a data.frame") 
-    if (nn %in% names(df)) {
-        variable <- nn
-    } else if (!grepl("[\"']", nn) & !exists(nn, mode = "character")) {
-        stop(nn, " is not a character object") 
-    }
-    if (any(! variable %in% names(df)))
-        stop("some variable not exist") 
-
-    gen_label <- function(name) {
-        label <- attr(df[[name]], "label")
-        if (is.null(label)) label <- name
-        label
-    }
-    if (!is.null(label) && label != TRUE) {
-        if (length(variable) != length(label))
-            stop("'label' must be NULL, TREU or a character vector having same length with variables")
-    } else if (!is.null(label) && label == TRUE) {
-        label <- as.character(lapply(variable, gen_label))
+    vari <- rlang::enquo(variable)
+    variable <- get_df_names(df, !!vari)
+    print(variable)
+    if (isTRUE(label)) {
+        label <- as.character(
+            lapply(
+                variable,
+                function(name) {
+                    label <- attr(df[[name]], "label")
+                    if (is.null(label)) label <- name
+                    label
+                }
+            )
+        )
+    } else if (!is.null(label) && length(variable) != length(label)) {
+        stop("The number of labels are not equal the number of variables")
     }
 
     sum_by_varname <- function(x) {
         stsum.default(df[[x]], na.rm, format, digits, nsmall, width, big.mark, quietly = TRUE)
     }
     m.temp <- sapply(variable, sum_by_varname)
-    df.new <- t(m.temp)
-    df.new <- as.data.frame(df.new, row.names = "")
+    df.new <- as.data.frame(t(m.temp), row.names = "")
     df.new <- if (!is.null(label)) {
         cbind(varlabel = format(label, justify = "right", width = 8), df.new)
     } else {

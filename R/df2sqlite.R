@@ -15,7 +15,7 @@ check_attr <- function(x, quietly = FALSE) {
 
     attr_exist <- vector("character")
     for (a in attr_list) {
-        t <- if (!is.null(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
+        t <- if (!isempty(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
 
         if (!quietly) {
             if ("crayon" %in% rownames(installed.packages()))
@@ -58,43 +58,42 @@ check_attr <- function(x, quietly = FALSE) {
 #' @export
 df_srdm <- function(df, database, table, replace = FALSE,
                     append = FALSE, write_repo = TRUE) {
-    if (!is.data.frame(df)) stop("df must be a data frame")
-    if (!(length(database) == 1 && stringr::str_detect(database, "^\\w+$")))
-        stop("database must be a valid name, match '^\\w+$'")
-    if (!(length(table) == 1 && stringr::str_detect(table, "^\\w+$")))
-        stop("table must be a valid name, match '^\\w+$'")
-
+    stopifnot(is.data.frame(df))
+    stopifnot(length(database) == 1 && stringr::str_detect(database, "^\\w+$"))
+    stopifnot(length(table) == 1 && stringr::str_detect(table, "^\\w+$"))
 
     # check the integraty of data frame's attributes
     table_attr <- check_attr(df, quietly = TRUE)
     table_attr["name"] = paste(database, table, sep = ":")
-    if (!"keys" %in% names(table_attr))
-        stop("Main keys are not setting, try to use attr(df, \"keys\") <-")
+    stopifnot("keys" %in% names(table_attr))
     keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-    if (anyDuplicated(setDT(df)[, ..keys]))
-        stop("The main keys cannot meet the uniqueness requirement!")
+    stopifnot(anyDuplicated(setDT(df)[, ..keys]) == 0)
 
     # check the integraty of all variables' attributes
     vari_attr <- lapply(df, check_attr, quietly = TRUE)
     for (i in seq_along(vari_attr)) {
-        if (! "label" %in% names(vari_attr[[i]]))
-            stop(names(vari_attr)[i], "'s label has not been set.")
+        stopifnot("label" %in% names(vari_attr[[i]]))
 
         if (( !"source" %in% names(vari_attr[[i]]) ||
                lbs::isempty(vari_attr[[i]]["source"])
             ) && !lbs::isempty(table_attr["source"])) {
             vari_attr[[i]]["source"] <- table_attr["source"]
         }
-        vari_attr[[i]]["name"]         <- paste(database, table, names(vari_attr)[i], sep = ":")
-        vari_attr[[i]]["type"]         <- typeof(df[[i]])
-        vari_attr[[i]]["number"]       <- length(df[[i]])
-        vari_attr[[i]]["missNumber"]   <- sum(lbs::isempty(df[[i]]))
+        vari_attr[[i]]["name"] <- paste(database,
+                                        table,
+                                        names(vari_attr)[i],
+                                        sep = ":")
+        vari_attr[[i]]["type"] <- typeof(df[[i]])
+        vari_attr[[i]]["number"] <- length(df[[i]])
+        vari_attr[[i]]["missNumber"] <- sum(isempty(df[[i]]))
         vari_attr[[i]]["uniqueNumber"] <- length(unique(df[[i]]))
     }
 
     # Convert attributes vector to string, and then write it to a file
-    srdm_fields <- c(vector2string(table_attr),
-                     sapply(vari_attr, vector2string))
+    srdm_fields <- c(
+        vector2string(table_attr),
+        sapply(vari_attr, vector2string)
+    )
 
     file <- tempfile("srdm")
     write("Attributes information:", file)
@@ -114,7 +113,7 @@ df_srdm <- function(df, database, table, replace = FALSE,
     if (isTRUE(write_repo && insert_result)) {
         if (isTRUE(replace)) {
             system(paste("srdm file --replace", file), ignore.stdout = TRUE)
-        } else if(isTRUE(append)) {
+        } else if (isTRUE(append)) {
             srdm_exist <- length(system(
                 gettextf("srdm search --table --name=%s:%s", database, table),
                 intern = TRUE)) == 0
@@ -191,8 +190,7 @@ df2sqlite <- function(df, database, table, keys,
             }
         )
 
-    if (any(length(database), length(table)) != 1)
-        stop("Only one table can be writen in one database.")
+    stopifnot(length(database) == 1 && length(table) == 1)
     database     <- paste0(database, ".sqlite")
     sth_create   <- gettextf("CREATE TABLE %s (%s, PRIMARY KEY(%s))", table,
                              paste(dfname2sql(df), collapse = ", "),

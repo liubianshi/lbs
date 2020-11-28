@@ -31,3 +31,12 @@ magrittr::`%>%`
 #' @importFrom data.table as.data.table
 #' @export
 ?data.table::as.data.table
+
+#' @importFrom rlang !!
+#' @export
+?rlang::`!!`
+
+#' @importFrom rlang !!!
+#' @export
+?rlang::`!!!`
+
