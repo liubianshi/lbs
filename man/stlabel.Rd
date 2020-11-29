@@ -4,7 +4,7 @@
 \alias{stlabel}
 \title{Set attributes for variables in data.frame}
 \usage{
-stlabel(df, variable, attribute, type = "label")
+stlabel(df, var, attr, type = "label")
 }
 \arguments{
 \item{df}{data.table}

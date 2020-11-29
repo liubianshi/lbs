@@ -15,7 +15,7 @@ check_attr <- function(x, quietly = FALSE) {
 
     attr_exist <- vector("character")
     for (a in attr_list) {
-        t <- if (!isempty(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
+        t <- if (!is.null(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
 
         if (!quietly) {
             if ("crayon" %in% rownames(installed.packages()))
@@ -75,8 +75,8 @@ df_srdm <- function(df, database, table, replace = FALSE,
         stopifnot("label" %in% names(vari_attr[[i]]))
 
         if (( !"source" %in% names(vari_attr[[i]]) ||
-               lbs::isempty(vari_attr[[i]]["source"])
-            ) && !lbs::isempty(table_attr["source"])) {
+               isempty(vari_attr[[i]]["source"])
+            ) && !isempty(table_attr["source"])) {
             vari_attr[[i]]["source"] <- table_attr["source"]
         }
         vari_attr[[i]]["name"] <- paste(database,

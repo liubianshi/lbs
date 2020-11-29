@@ -12,7 +12,7 @@ getDataSQLite(
   path = NULL,
   and = TRUE,
   limit = NULL,
-  noinfo = FALSE
+  noinfo = TRUE
 )
 }
 \arguments{

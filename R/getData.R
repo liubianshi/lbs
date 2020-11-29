@@ -12,7 +12,7 @@
 getDataSQLite <- function(database, table, var = NULL,
                        condition = NULL, path = NULL,
                        and = TRUE, limit = NULL, noinfo = TRUE) {
-    if (isempty(path)) {
+    if (is.null(path)) {
         path <- file.path(Sys.getenv("DATA_ARCHIVE"),
                           paste0(database, ".sqlite"))
     }
@@ -22,14 +22,14 @@ getDataSQLite <- function(database, table, var = NULL,
     tableList <- DBI::dbListTables(con)
     stopifnot(isTRUE(table %in% tableList))
 
-    if (isempty(var))  {
+    if (is.null(var))  {
         var <- "*"
         varlist <-  "*"
     } else {
         varlist <- paste(var, collapse = ",")
     }
 
-    if (isempty(condition)) {
+    if (is.null(condition)) {
         condition <- "TRUE"
     } else {
         condition <- paste0("(", condition, ")")
@@ -42,7 +42,7 @@ getDataSQLite <- function(database, table, var = NULL,
         }
     }
 
-    if (!isempty(limit))
+    if (!is.null(limit))
         condition <- paste(condition, "\n LIMIT", limit)
 
     sel <- gettextf("SELECT %s\n  FROM %s\n WHERE %s", varlist, table, condition)
@@ -72,7 +72,7 @@ getdatainfo <- function(database, table, var = NULL) {
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 
-    if (isempty(var)) {
+    if (is.null(var)) {
         sel <- gettextf("SELECT * FROM data_table WHERE name IN (\n\t%s)",
                         paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t"))
     } else if (isTRUE(var %in% c("all", "*"))) {
