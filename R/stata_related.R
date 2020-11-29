@@ -158,3 +158,12 @@ stsum.data.frame <- function(df, variable, label = NULL, na.rm = TRUE,
     df.new
 }
 
+#' Trans numeric vector to character with specific format
+#'
+#' @param x a numeric vector
+#' @param fmt a character vector of format strings
+#' @export
+stenstring <- function(x, fmt = "%d") {
+    stopifnot(is.numeric(x))
+    ifelse(isempty(x), NA_character_, gettextf(fmt, x))
+}
