@@ -17,26 +17,28 @@ magrittr::`%>%`
 
 #' @importFrom data.table :=
 #' @export
-?data.table::`:=`
+data.table::`:=`
 
 
 #' @importFrom data.table setDT
 #' @export
-?data.table::setDT
+data.table::setDT
 
 #' @importFrom data.table data.table
 #' @export
-?data.table::data.table
+data.table::data.table
 
 #' @importFrom data.table as.data.table
 #' @export
-?data.table::as.data.table
+data.table::as.data.table
 
 #' @importFrom rlang !!
 #' @export
-?rlang::`!!`
+rlang::`!!`
 
 #' @importFrom rlang !!!
 #' @export
-?rlang::`!!!`
+rlang::`!!!`
+
+# regforuse -------------------------------------------------------------------
 

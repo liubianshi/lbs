@@ -63,7 +63,7 @@ stlabel <- function(df, var, attr, type = "label") {
 #' stformat(c(NA, 10 ^ seq(-5, 5)) + runif(12))
 #' @export
 stformat <- function(x, digits = 3L, nsmall = 3L, width = NULL,
-                      big.mark = ",", na.replace = "n.a.") {
+                      big.mark = ",", na.replace = "") {
     one <- function(z, nsmall, width, digits, na.replace, big.mark) {
         if (is.na(z)) return(na.replace)
         if (is.integer(z)) return(format(z, digits = 0, nsmall = 0,
@@ -87,6 +87,7 @@ stformat <- function(x, digits = 3L, nsmall = 3L, width = NULL,
             }
     }
     if (!is.numeric(x)) stop("x must be numeric vector")
+    if (is.integer(x)) return(as.character(x))
     as.character(lapply(x, one, nsmall, width, digits, na.replace, big.mark))
 }
 

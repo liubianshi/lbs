@@ -104,7 +104,7 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     if (!is.integer(df[[time]])) stop("time variable must point to an integer vector")
 
     # 待求 Lag 的变量
-    if (isempty(varlist)) varlist <- names_df
+    if (all(isempty(varlist))) varlist <- names_df
     varlist <- setdiff(varlist, c(time, by))
     k.lag.varlist <- gen_lag_name(varlist, n)
     if (length(varlist) != 1L && isTRUE(mode == "vector"))
@@ -112,7 +112,7 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
 
     # 在 data.table 上进行修改
     if (isempty(mode)) {
-        if (isempty(by)) {
+        if (all(isempty(by))) {
             df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
                                            .SD[[1]], ..n),
                 .SDcols = c(time, varlist)]
@@ -125,7 +125,7 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     }
 
     # 输出制定模式的结果
-    new.df <- if (isempty(by)) {
+    new.df <- if (all(isempty(by))) {
         df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
              .SDcols = c(time, varlist)]
     } else {

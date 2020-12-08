@@ -50,7 +50,6 @@ getDataSQLite <- function(database, table, var = NULL,
             sel, '\n=================================')
 
     data <- DBI::dbGetQuery(con, sel) %>% setDT()
-
     info <- getdatainfo(database, table, var)
     stlabel(data, names(data), info[, label])
 
@@ -87,6 +86,10 @@ getdatainfo <- function(database, table, var = NULL) {
     }
     #message("SQL Query Sentence:\n", sel)
     out <- DBI::dbGetQuery(con, sel) %>% setDT()
+    if (length(var) >= 2L) {
+        namelist <- strsplit(out$name, ":") %>% purrr::map_chr(`[[`, 3)
+        out <- out[match(var, namelist)]
+    }
     out
 }
 
