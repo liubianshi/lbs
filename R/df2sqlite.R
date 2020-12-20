@@ -62,6 +62,12 @@ df_srdm <- function(df, database, table, replace = FALSE,
     stopifnot(length(database) == 1 && stringr::str_detect(database, "^\\w+$"))
     stopifnot(length(table) == 1 && stringr::str_detect(table, "^\\w+$"))
 
+    # Transform date to character
+    for (i in seq_along(df)) {
+        if (any(class(df[[i]]) %in% c("Date", "POSIXt")))
+            df[[i]] <- as.character(as.POSIXct(df[[i]]))
+    }
+
     # check the integraty of data frame's attributes
     table_attr <- check_attr(df, quietly = TRUE)
     table_attr["name"] = paste(database, table, sep = ":")
@@ -238,7 +244,9 @@ df2sqlite <- function(df, database, table, keys,
 
 dfname2sql <- function(df) {
     name2sql <- function(name) {
-        if (is.integer(df[[name]])) {
+        if (is.list(df[[name]])) {
+            paste(name, "BLOB")
+        } else if (is.integer(df[[name]])) {
             paste(name, "INTEGER")
         } else if (is.numeric(df[[name]])) {
             paste(name, "NUMERIC")

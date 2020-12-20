@@ -10,7 +10,7 @@ stformat(
   nsmall = 3L,
   width = NULL,
   big.mark = ",",
-  na.replace = "n.a."
+  na.replace = ""
 )
 }
 \arguments{

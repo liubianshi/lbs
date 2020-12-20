@@ -59,3 +59,26 @@ fill = function(x, forward = TRUE, maxgap = Inf) {
     if (!forward) x = rev(x)           # second reversion
     x
 }
+
+#' scalar version of ifelse
+#' @param x, an object
+#' @param then, return value when `do.call(fun, list(x))` is `TRUE` 
+#' @param otherwise, return value when `do.call(fun, list(x))` is `FALSE`, default value is x
+#' @param fun, a function or function name, used to judge, default value is `is.null`
+#' @export
+ifthen <- function(x, then, otherwise = x, fun = is.null) {
+    result <- do.call(fun, list(x))
+    stopifnot(isTRUE(result) || isFALSE(result))
+    if (result) then else otherwise
+}
+
+
+#' `%//%`: replace NULL with default value
+#'
+#' @param x, an object
+#' @param then, return value when `x` is `NULL` 
+#' @
+`%//%` <- function(x, then) {
+    if (is.null(x)) then else x
+}
+

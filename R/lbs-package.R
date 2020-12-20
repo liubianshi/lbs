@@ -19,6 +19,9 @@ magrittr::`%>%`
 #' @export
 data.table::`:=`
 
+#' @importFrom data.table setattr
+#' @export
+data.table::setattr
 
 #' @importFrom data.table setDT
 #' @export
