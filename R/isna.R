@@ -77,7 +77,7 @@ ifthen <- function(x, then, otherwise = x, fun = is.null) {
 #'
 #' @param x, an object
 #' @param then, return value when `x` is `NULL` 
-#' @
+#' @export
 `%//%` <- function(x, then) {
     if (is.null(x)) then else x
 }
