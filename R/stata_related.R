@@ -130,7 +130,6 @@ stsum.data.frame <- function(df, variable, label = NULL, na.rm = TRUE,
                               nsmall = 3, width = 7, big.mark = ",") {
     vari <- rlang::enquo(variable)
     variable <- get_df_names(df, !!vari)
-    print(variable)
     if (isTRUE(label)) {
         label <- as.character(
             lapply(
