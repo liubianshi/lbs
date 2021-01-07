@@ -4,7 +4,7 @@
 \alias{pop}
 \title{perl-style pop}
 \usage{
-pop(x)
+pop(x, drop = TRUE)
 }
 \description{
 perl-style pop

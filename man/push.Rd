@@ -4,7 +4,7 @@
 \alias{push}
 \title{perl-style push}
 \usage{
-push(x, values)
+push(x, ...)
 }
 \description{
 perl-style push
