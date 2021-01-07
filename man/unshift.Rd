@@ -4,7 +4,7 @@
 \alias{unshift}
 \title{perl-style unshift}
 \usage{
-unshift(x, values)
+unshift(x, ...)
 }
 \description{
 perl-style unshift

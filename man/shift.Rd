@@ -4,7 +4,7 @@
 \alias{shift}
 \title{perl-style shift}
 \usage{
-shift(x)
+shift(x, drop = TRUE)
 }
 \description{
 perl-style shift
