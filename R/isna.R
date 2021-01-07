@@ -24,7 +24,7 @@ isempty <- function(x, na = NULL) {
     if (is.null(x)) return(TRUE)
     empty_x <- is.na(x) | x %in% na
     if (is.character(x))
-        empty_x <- empty_x | stringr::str_detect(x, "^\\s*$")
+        empty_x <- empty_x | grepl("^\\s*$", x)
     empty_x
 }
 
@@ -80,5 +80,15 @@ ifthen <- function(x, then, otherwise = x, fun = is.null) {
 #' @export
 `%//%` <- function(x, then) {
     if (is.null(x)) then else x
+}
+
+#' ifempty: replace empty elements with default value
+#'
+#' @param x, an object
+#' @param then, default value for empty x
+#' @param na, values can be considered as empty value
+#' @export
+ifempty <- function(x, then, na = NULL) {
+    ifelse(isempty(x, na), then, x)
 }
 
