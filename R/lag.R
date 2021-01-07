@@ -141,7 +141,7 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
         new.df
     } else if (mode == "vector") {
         new.df[[k.lag.varlist]]
-    }else {
+    } else {
         stop("invalid mode")
     }
     out

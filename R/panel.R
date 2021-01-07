@@ -42,3 +42,54 @@ stxtset <- function(df, id, time) {
     }
     invisible(df)
 }
+
+#' calculate propensity score for panel data
+#' 
+#' @param data a data.table labeld as panel data by `stxtset()`
+#' @param treat variable name that indicates whether the unit is treated
+#' @param cov character vector indicating the set of covarieates
+#' @param lag an integer vector indicating how to use lags of covarieates
+#' @param method a string indicating the method used to calcuate propensity
+#'        score which will be passed to `binomial()` as augument `link`.
+#' @export
+calpscore_panel <- function(data, treat, cov, lag = 0L, method = "logit") {
+    stopifnot(stxtcheck(data)[[1]])
+
+    keep_vars <- c(attr(data, "xt"), treat, cov)
+    covs <- paste0("cov", seq_along(cov))
+    newnames <- c("ID", "time", "treat", covs)
+    sample <- data[, ..keep_vars]
+    data.table::setnames(sample, newnames)
+
+    class(sample$treat) <- "integer"
+    sample[, treat := as.logical(treat)]
+    stxtset(sample, "ID", "time")
+
+    for (i in lag) {
+        if (i == 0L) next
+        stlag(sample, covs, n = i)
+    }
+    covs <- names(sample)[4:length(sample)]
+
+    sample[, treated := treat - ifempty(stlag(treat, time), 0) == 1L,
+             by = "ID"] %>%
+        .[(treated), treatStart := time] %>%
+        setorder(ID, treatStart, na.last = TRUE) %>%
+        .[, treatStart := first(treatStart), by = "ID"] %>%
+        .[, treated := NULL] %>%
+        setorder(ID, time)
+
+    sample <- sample[!(treat & time > treatStart)] %>%
+        na.omit(c("ID", "time", "treat", covs))
+
+    formula <- as.formula(gettextf(
+        "treat ~ %s", paste(covs, collapse = " + ")
+    ))
+
+    esti <- glm(formula, data = sample, family = binomial(link = method))
+    out <- sample[, pscore := predict(..esti, type = "response")] %>% 
+        .[, .(ID, time, pscore)]
+    setnames(out, c("ID", "time"), keep_vars[1:2])
+    out
+}
+
