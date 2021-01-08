@@ -52,12 +52,12 @@ stxtset <- function(df, id, time) {
 #' @param method a string indicating the method used to calcuate propensity
 #'        score which will be passed to `binomial()` as augument `link`.
 #' @export
-calpscore_panel <- function(data, treat, cov, lag = 0L, method = "logit") {
+stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
+                    method = "logit", ...) {
     stopifnot(stxtcheck(data)[[1]])
+    matchit_args <- list(...)
 
     keep_vars <- c(attr(data, "xt"), treat, cov)
-    covs <- paste0("cov", seq_along(cov))
-    newnames <- c("ID", "time", "treat", covs)
     sample <- data[, ..keep_vars]
     data.table::setnames(sample, newnames)
 
@@ -65,11 +65,21 @@ calpscore_panel <- function(data, treat, cov, lag = 0L, method = "logit") {
     sample[, treat := as.logical(treat)]
     stxtset(sample, "ID", "time")
 
-    for (i in lag) {
-        if (i == 0L) next
-        stlag(sample, covs, n = i)
+    lag %<>% ifthen(0L)
+    if (inherits(lag, "integer")) {
+        lag <- rep_len(lag, length(cov)) %>% as.list()
+        names(lag) <- cov
     }
-    covs <- names(sample)[4:length(sample)]
+    covs <- purrr::map2(names(lag), lag, ~ {
+        keep_covs <- vector("list", length(.y)) 
+        for (i in .y) {
+            if (i != 0L) stlag(sample, .x, i)
+            keep_covs[i] <- paste0("L", i, ".", .x)
+        }
+        keep_covs
+    }) %>% unlist() %>%
+    gsub("^L0\\.", "", .) %>%
+    gsub("^L1\\.", "L.", .)
 
     sample[, treated := treat - ifempty(stlag(treat, time), 0) == 1L,
              by = "ID"] %>%
@@ -87,9 +97,48 @@ calpscore_panel <- function(data, treat, cov, lag = 0L, method = "logit") {
     ))
 
     esti <- glm(formula, data = sample, family = binomial(link = method))
-    out <- sample[, pscore := predict(..esti, type = "response")] %>% 
-        .[, .(ID, time, pscore)]
+    sample[, pscore := predict(..esti, type = "response")]
+
+    if (require(MatchIt)) {
+        sample[, matchID := NA]
+        matchit_args$formula <- formula
+
+        for (t in unique(sample$treatStart)) {
+            matchit_args$data <- sample[is.na(matchID) & time == t]
+            matchit_args$distance <- matchit_args$data$pscore
+            m <- do.call(MatchIt::matchit, matchit_args)
+            cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
+            tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
+            sample <- data.table(ID = c(tID, cID), rep(paste(tID, cID, "-"))) %>%
+                .[!is.na(ID)] %>%
+                .[sample, on = "ID"] %>%
+                .[, matchID := ifempty(i.matchID, matchID)] %>%
+                .[, i.matchID := NULL]
+        }
+    }
+
+    out <- sample[, .(ID, time, treat, treatStart, pscore, matchID)]
     setnames(out, c("ID", "time"), keep_vars[1:2])
+    stxtset(out, keep_vars[1], keep_vars[2])
     out
 }
 
+#' get treated and control group match table
+#'
+#' @export
+getmatchtable_panel <- function(data, ...) {
+    stopifnot(require(MatchIt))
+    match_args <- list(...)
+    stopifnot(stxtcheck(datadata)[[1]])
+    stopifnot(all(c("treatStart", "pscore") %in% names(data)))
+    sample <- data[, .SD, .SDcols = c(attr(data, "xt"), "treatStart", "pscore")]
+    names(sample) <- c("ID", "time", "treatStart", "pscore")
+    sample[, treat := !is.na(treatStart)][, matchID := ""]
+
+    match_args$data <- sample
+    match_args$distance <- sample$pscore
+
+    for (t in unique(sample$treatStart)) {
+        m <- do.call(MatchIt::matchit, match_args)
+    }
+}
