@@ -97,36 +97,45 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
     esti <- glm(formula, data = sample, family = binomial(link = method))
     sample[, pscore := predict(..esti, type = "response")]
 
-    if (!require(MatchIt)) stop("Pleas install package MatchIt first")
-    sample[, matchID := NA]
-    matchit_args$formula <- formula
-    for (t in unique(sample$treatStart)) {
-        matchit_args$data <- sample[is.na(matchID) & time == t]
-        if (length(unique(matchit_args$data$treat)) != 2) next
-        matchit_args$distance <- matchit_args$data$pscore
-        m <- do.call(MatchIt::matchit, matchit_args)
-        cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
-        tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
-        sample <- data.table(
-            ID = c(tID, cID),
-            matchID = rep(paste(tID, cID, sep = "-"), 2)
-        ) %>%
-            .[!is.na(ID)] %>%
-            .[is.na(matchID), matchID := ""] %>%
-            .[sample, on = "ID"] %>%
-            .[, matchID := ifempty(i.matchID, matchID)] %>%
-            .[, i.matchID := NULL]
-    }
-    sample %>%
-        setorder(matchID, treatStart, na.last = TRUE) %>%
-        .[, treatStart := first(treatStart), by = "matchID"]
-
     unbalance <- local({
         sample_filtered <- sample[time == treatStart | is.na(treatStart)]
         c("pscore", covs) %>%
             lapply(diff_check, data = sample_filtered, over = "treat") %>%
             do.call(rbind, .)
     }) %>% setDT()
+
+
+    if (!require(MatchIt)) stop("Pleas install package MatchIt first")
+    sample[, matchID := NA]
+    matchit_args$formula <- formula
+    treatStartTimes <- na.omit(unique(sample$treatStart))
+    matchlog <- vector("list", length(treatStartTimes))
+    names(matchlog) <- treatStartTimes
+
+    for (i in seq_along(treatStartTimes)) {
+        t <- treatStartTimes[i]
+        matchit_args$data <- sample[is.na(matchID) & time == t]
+        if (length(unique(matchit_args$data$treat)) != 2) next
+        matchit_args$distance <- matchit_args$data$pscore
+        matchlog[[i]] <- do.call(MatchIt::matchit, matchit_args)
+
+        match_table <- local({
+            m <- matchlog[[i]]
+            cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
+            tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
+            data.table(
+                ID = c(tID, cID),
+                match_new = rep(paste(tID, cID, sep = "-"), 2)
+            )[!is.na(ID)][is.na(match_new), match_new := ""] 
+        })
+        sample <- match_table[sample, on = "ID"] %>%
+            .[, matchID := ifempty(matchID, match_new)] %>%
+            .[, match_new := NULL]
+    }
+    sample %>%
+        setorder(matchID, treatStart, na.last = TRUE) %>%
+        .[!lbs::isempty(matchID),
+          treatStart := first(treatStart), by = "matchID"]
 
     balance <- local({
         sample_filtered <- sample[!isempty(matchID) & time == treatStart]
@@ -138,7 +147,9 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
     sample %<>% .[, .(ID, time, treat, treatStart, pscore, matchID)]
     setnames(sample, c("ID", "time"), keep_vars[1:2])
     stxtset(sample, keep_vars[1], keep_vars[2])
-    list(data = sample, check = list(unbalance = unbalance, balance = balance))
+    list(data = sample,
+         log = matchlog,
+         check = list(unbalance = unbalance, balance = balance))
 }
 
 diff_check <- function(var, data, over) {
