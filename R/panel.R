@@ -52,34 +52,35 @@ stxtset <- function(df, id, time) {
 #' @param method a string indicating the method used to calcuate propensity
 #'        score which will be passed to `binomial()` as augument `link`.
 #' @export
-stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
-                    method = "logit", ...) {
+stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
     stopifnot(stxtcheck(data)[[1]])
     matchit_args <- list(...)
 
     keep_vars <- c(attr(data, "xt"), treat, cov)
     sample <- data[, ..keep_vars]
-    data.table::setnames(sample, newnames)
+    data.table::setnames(sample, c("ID", "time", "treat", cov))
+    stxtset(sample, "ID", "time")
 
     class(sample$treat) <- "integer"
     sample[, treat := as.logical(treat)]
-    stxtset(sample, "ID", "time")
 
     lag %<>% ifthen(0L)
     if (inherits(lag, "integer")) {
         lag <- rep_len(lag, length(cov)) %>% as.list()
         names(lag) <- cov
     }
+    for (name in cov) lag[[name]] %<>% ifthen(0L)
     covs <- purrr::map2(names(lag), lag, ~ {
-        keep_covs <- vector("list", length(.y)) 
-        for (i in .y) {
-            if (i != 0L) stlag(sample, .x, i)
-            keep_covs[i] <- paste0("L", i, ".", .x)
+        keep_covs <- vector("list", length(.y))
+        for (i in seq_along(.y)) {
+            if (.y[i] != 0) stlag(sample, .x, n = as.integer(.y[i]))
+            keep_covs[[i]] <- paste0("L", .y[i], ".", .x)
         }
         keep_covs
-    }) %>% unlist() %>%
-    gsub("^L0\\.", "", .) %>%
-    gsub("^L1\\.", "L.", .)
+    }) %>%
+    unlist()
+    covs <- gsub("^L0\\.", "", covs)
+    covs <- gsub("^L1\\.", "L.", covs)
 
     sample[, treated := treat - ifempty(stlag(treat, time), 0) == 1L, by = "ID"] %>%
         .[(treated), treatStart := time] %>%
@@ -91,35 +92,74 @@ stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
     sample <- sample[!(treat & time > treatStart)] %>%
         .[time %in% unique(sample$treatStart)] %>%
         na.omit(c("ID", "time", "treat", covs))
-
     formula <- as.formula(gettextf(
         "treat ~ %s", paste(covs, collapse = " + ")
     ))
-
     esti <- glm(formula, data = sample, family = binomial(link = method))
     sample[, pscore := predict(..esti, type = "response")]
 
-    if (require(MatchIt)) {
-        sample[, matchID := NA]
-        matchit_args$formula <- formula
+    unbalance <- local({
+        sample_filtered <- sample[time == treatStart | is.na(treatStart)]
+        c("pscore", covs) %>%
+            lapply(diff_check, data = sample_filtered, over = "treat") %>%
+            do.call(rbind, .)
+    }) %>% setDT()
 
-        for (t in unique(sample$treatStart)) {
-            matchit_args$data     <- sample[is.na(matchID) & time == t]
-            matchit_args$distance <- matchit_args$data$pscore
-            m   <- do.call(MatchIt::matchit, matchit_args)
+
+    if (!require(MatchIt)) stop("Pleas install package MatchIt first")
+    sample[, matchID := NA]
+    matchit_args$formula <- formula
+    treatStartTimes <- na.omit(unique(sample$treatStart))
+    matchlog <- vector("list", length(treatStartTimes))
+    names(matchlog) <- treatStartTimes
+
+    for (i in seq_along(treatStartTimes)) {
+        t <- treatStartTimes[i]
+        matchit_args$data <- sample[is.na(matchID) & time == t]
+        if (length(unique(matchit_args$data$treat)) != 2) next
+        matchit_args$distance <- matchit_args$data$pscore
+        matchlog[[i]] <- do.call(MatchIt::matchit, matchit_args)
+
+        match_table <- local({
+            m <- matchlog[[i]]
             cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
             tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
-            sample <- data.table(ID = c(tID, cID), rep(paste(tID, cID, "-"))) %>%
-                .[!is.na(ID)] %>%
-                .[sample, on = "ID"] %>%
-                .[, matchID := ifempty(i.matchID, matchID)] %>%
-                .[, i.matchID := NULL]
-        }
+            data.table(
+                ID = c(tID, cID),
+                match_new = rep(paste(tID, cID, sep = "-"), 2)
+            )[!is.na(ID)][is.na(match_new), match_new := ""] 
+        })
+        sample <- match_table[sample, on = "ID"] %>%
+            .[, matchID := ifempty(matchID, match_new)] %>%
+            .[, match_new := NULL]
     }
+    sample %>%
+        setorder(matchID, treatStart, na.last = TRUE) %>%
+        .[!lbs::isempty(matchID),
+          treatStart := first(treatStart), by = "matchID"]
 
-    out <- sample[, .(ID, time, treat, treatStart, pscore, matchID)]
-    setnames(out, c("ID", "time"), keep_vars[1:2])
-    stxtset(out, keep_vars[1], keep_vars[2])
+    balance <- local({
+        sample_filtered <- sample[!isempty(matchID) & time == treatStart]
+        c("pscore", covs) %>%
+            lapply(diff_check, data = sample_filtered, over = "treat") %>%
+            do.call(rbind, .)
+    }) %>% setDT()
+
+    sample %<>% .[, .(ID, time, treat, treatStart, pscore, matchID)]
+    setnames(sample, c("ID", "time"), keep_vars[1:2])
+    stxtset(sample, keep_vars[1], keep_vars[2])
+    list(data = sample,
+         log = matchlog,
+         check = list(unbalance = unbalance, balance = balance))
+}
+
+diff_check <- function(var, data, over) {
+    formula <- as.formula(gettextf("%s ~ %s", var, over))
+    t <- t.test(formula, data)    
+    out <- data.frame(var, t$estimate[1], t$estimate[2],
+                      t$estimate[1] - t$estimate[2],
+                      t$stderr, t$p.value)
+    names(out) <- c("variable", "group1", "group2", "diff", "diff_sd", "diff_p")
     out
 }
 

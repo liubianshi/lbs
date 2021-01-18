@@ -4,6 +4,7 @@
 \name{reexports}
 \alias{reexports}
 \alias{\%>\%}
+\alias{\%<>\%}
 \alias{:=}
 \alias{setattr}
 \alias{setDT}
@@ -20,7 +21,7 @@ below to see their documentation.
 \describe{
   \item{data.table}{\code{\link[data.table:assign]{:=}}, \code{\link[data.table]{as.data.table}}, \code{\link[data.table]{data.table}}, \code{\link[data.table]{setDT}}, \code{\link[data.table]{setattr}}}
 
-  \item{magrittr}{\code{\link[magrittr:pipe]{\%>\%}}}
+  \item{magrittr}{\code{\link[magrittr:compound]{\%<>\%}}, \code{\link[magrittr:pipe]{\%>\%}}}
 
   \item{rlang}{\code{\link[rlang:nse-force]{!!}}, \code{\link[rlang:nse-force]{!!!}}}
 }}
