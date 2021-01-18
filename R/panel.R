@@ -53,7 +53,7 @@ stxtset <- function(df, id, time) {
 #'        score which will be passed to `binomial()` as augument `link`.
 #' @export
 stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
-    stopifnot(stxtcheck(data)[[1]])
+    stopifnot(!is.null(attr(data, "xt")))
     matchit_args <- list(...)
 
     keep_vars <- c(attr(data, "xt"), treat, cov)
@@ -65,11 +65,13 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
     sample[, treat := as.logical(treat)]
 
     lag %<>% ifthen(0L)
-    if (inherits(lag, "integer")) {
-        lag <- rep_len(lag, length(cov)) %>% as.list()
-        names(lag) <- cov
-    }
-    for (name in cov) lag[[name]] %<>% ifthen(0L)
+    if (is.numeric(lag))
+        lag <- rep_len(as.integer(lag), length(cov)) %>% as.list()
+    if (is.null(names(lag)) && length(lag) != length(cov))
+        stop("If lag is a list without names, the length must equal cov!")
+    if (is.null(names(lag))) names(lag) <- cov
+    for (name in cov)
+        lag[[name]] %<>% ifthen(0L)
     covs <- purrr::map2(names(lag), lag, ~ {
         keep_covs <- vector("list", length(.y))
         for (i in seq_along(.y)) {
@@ -86,11 +88,15 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
         .[(treated), treatStart := time] %>%
         setorder(ID, treatStart, na.last = TRUE) %>%
         .[, treatStart := first(treatStart), by = "ID"] %>%
-        .[, treated := NULL] %>%
+        .[, treated := NULL]
+
+    sample %<>%
+        setorder(ID, treat) %>%
+        .[, treat := last(treat), by = "ID"] %>%
+        .[!(treat & time > treatStart)] %>%
+        na.omit(c("ID", "time", "treat", covs)) %>%
         setorder(ID, time)
 
-    sample <- sample[!(treat & time > treatStart)] %>%
-        na.omit(c("ID", "time", "treat", covs))
     formula <- as.formula(gettextf(
         "treat ~ %s", paste(covs, collapse = " + ")
     ))
@@ -104,20 +110,32 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
             do.call(rbind, .)
     }) %>% setDT()
 
-
     if (!require(MatchIt)) stop("Pleas install package MatchIt first")
     sample[, matchID := NA]
     matchit_args$formula <- formula
-    treatStartTimes <- na.omit(unique(sample$treatStart))
+    treatStartTimes <- intersect(
+        na.omit(unique(sample$treatStart)),
+        na.omit(unique(sample$time))
+    ) %>% sort()
     matchlog <- vector("list", length(treatStartTimes))
     names(matchlog) <- treatStartTimes
 
     for (i in seq_along(treatStartTimes)) {
-        t <- treatStartTimes[i]
-        matchit_args$data <- sample[is.na(matchID) & time == t]
-        if (length(unique(matchit_args$data$treat)) != 2) next
+        matchit_args$data <- local({
+            keep <- sample$time == treatStartTimes[i] & (
+                (sample$treat  & sample$treatStart == treatStartTimes[i] ) |
+                (!sample$treat & is.na(sample$matchID))
+            )
+            sample[keep]
+        })
         matchit_args$distance <- matchit_args$data$pscore
-        matchlog[[i]] <- do.call(MatchIt::matchit, matchit_args)
+        matchit_args$discard <- "both"
+
+        matchlog[[i]] <- try(do.call(MatchIt::matchit, matchit_args))
+        if (class(matchlog[[i]]) == "try-error") {
+            if (!grepl("No units", matchlog[[i]])) stop(matchlog[[i]])
+            next
+        }
 
         match_table <- local({
             m <- matchlog[[i]]
@@ -126,15 +144,17 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
             data.table(
                 ID = c(tID, cID),
                 match_new = rep(paste(tID, cID, sep = "-"), 2)
-            )[!is.na(ID)][is.na(match_new), match_new := ""] 
+            )[!is.na(ID)][grepl("NA", match_new), match_new := ""]
         })
+
         sample <- match_table[sample, on = "ID"] %>%
-            .[, matchID := ifempty(matchID, match_new)] %>%
+            .[, matchID := ifelse(is.na(matchID), match_new, matchID)] %>%
             .[, match_new := NULL]
     }
+
     sample %>%
         setorder(matchID, treatStart, na.last = TRUE) %>%
-        .[!lbs::isempty(matchID),
+        .[!isempty(matchID),
           treatStart := first(treatStart), by = "matchID"]
 
     balance <- local({
