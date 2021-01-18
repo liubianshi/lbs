@@ -81,8 +81,7 @@ stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
     gsub("^L0\\.", "", .) %>%
     gsub("^L1\\.", "L.", .)
 
-    sample[, treated := treat - ifempty(stlag(treat, time), 0) == 1L,
-             by = "ID"] %>%
+    sample[, treated := treat - ifempty(stlag(treat, time), 0) == 1L, by = "ID"] %>%
         .[(treated), treatStart := time] %>%
         setorder(ID, treatStart, na.last = TRUE) %>%
         .[, treatStart := first(treatStart), by = "ID"] %>%
@@ -90,6 +89,7 @@ stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
         setorder(ID, time)
 
     sample <- sample[!(treat & time > treatStart)] %>%
+        .[time %in% unique(sample$treatStart)] %>%
         na.omit(c("ID", "time", "treat", covs))
 
     formula <- as.formula(gettextf(
@@ -104,9 +104,9 @@ stxtpsm <- function(data, treat, cov, lag = NULL, lag = NULL,
         matchit_args$formula <- formula
 
         for (t in unique(sample$treatStart)) {
-            matchit_args$data <- sample[is.na(matchID) & time == t]
+            matchit_args$data     <- sample[is.na(matchID) & time == t]
             matchit_args$distance <- matchit_args$data$pscore
-            m <- do.call(MatchIt::matchit, matchit_args)
+            m   <- do.call(MatchIt::matchit, matchit_args)
             cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
             tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
             sample <- data.table(ID = c(tID, cID), rep(paste(tID, cID, "-"))) %>%
