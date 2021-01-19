@@ -54,14 +54,14 @@ stxtset <- function(df, id, time) {
 #' @export
 stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
     stopifnot(!is.null(attr(data, "xt")))
-    matchit_args <- list(...)
-    keep_vars <- c(attr(data, "xt"), treat, cov)
 
+    matchit_args <- list(...)
+    keep_vars    <- c(attr(data, "xt"), treat, cov)
     sample <- data[, ..keep_vars]
     data.table::setnames(sample, c("ID", "time", "treat", paste0("cov", seq_along(cov))))
     stxtset(sample, "ID", "time")
-    setpaneltreat(sample, treat)
-    covs <- setcovlags(sample, cov, lag)
+    setpaneltreat(sample)
+    covs <- setcovlags(sample, paste0("cov", seq_along(cov)), lag, label = cov)
     sample %<>%
         .[!treat | time <= treatStart] %>%
         .[time %in% unique(sample$treatStart)]
@@ -87,59 +87,10 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
         na.omit(unique(sample$treatStart)),
         na.omit(unique(sample$time))
     ) %>% sort()
-    matchlog <- vector("list", length(treatStartTimes))
+    matchlog <- lapply(treatStartTimes, psm, sample = sample, matchit_args, names(covs))
     names(matchlog) <- paste("Treated time:", treatStartTimes)
-
-    match_result <- lapply(treatStartTimes, psm, sample, matchit_args)
-
-    psm <- function(tStart, sample, args) {
-        neededvars <- c("ID", "time", "treat", "treatStart", "matchID")
-        stopifnot(all(neededvars %in% names(data)))
-
-        args$data <- local({
-            keep <- sample$time == tstart & (
-                (sample$treat & sample$treatStart == tStart ) |
-                (!sample$treat & is.na(sample$matchID))
-            )
-            sample[keep]
-        })
-    }
-
-    for (i in seq_along(treatStartTimes)) {
-        matchit_args$data <- local({
-            keep <- sample$time == treatStartTimes[i] & (
-                (sample$treat  & sample$treatStart == treatStartTimes[i] ) |
-                (!sample$treat & is.na(sample$matchID))
-            )
-            sample[keep]
-        })
-        matchit_args$distance <- matchit_args$data$pscore
-
-        matchlog[[i]] <- try(do.call(MatchIt::matchit, matchit_args), silent = TRUE)
-        if (class(matchlog[[i]]) == "try-error") {
-            if (!grepl("No units", matchlog[[i]])) stop(matchlog[[i]])
-            next
-        }
-
-        match_table <- local({
-            m <- matchlog[[i]]
-            cID <- matchit_args$data$ID[as.integer(m$match.matrix)]
-            tID <- matchit_args$data$ID[as.integer(rownames(m$match.matrix))]
-            data.table(
-                ID = c(tID, cID),
-                match_new = rep(paste(tID, cID, sep = "-"), 2)
-            )[!is.na(ID)][grepl("NA", match_new), match_new := ""]
-        })
-
-        sample <- match_table[sample, on = "ID"] %>%
-            .[, matchID := ifelse(is.na(matchID), match_new, matchID)] %>%
-            .[, match_new := NULL]
-    }
-
-    sample %>%
-        setorder(matchID, treatStart, na.last = TRUE) %>%
-        .[!isempty(matchID),
-          treatStart := first(treatStart), by = "matchID"]
+    setorder(sample, matchID, -treatStart) %>%
+        .[!isempty(matchID), treatStart := last(treatStart), by = "matchID"]
 
     balance <- local({
         sample_filtered <- sample[!isempty(matchID) & time == treatStart]
@@ -147,7 +98,8 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
             c("pscore", covs) %>%
                 lapply(diff_check, data = sample_filtered, over = "treat") %>%
                 do.call(rbind, .) %>%
-                setDT()
+                setDT() %>%
+                .[, variable := c("Propensity Score", names(covs))]
         } else {
             NULL
         }
@@ -180,17 +132,18 @@ setcovlags <- function(data, cov, lag, label) {
         lag <- rep_len(as.integer(lag), length(cov)) %>% as.list()
     if (is.null(names(lag)) && length(lag) != length(cov))
         stop("If lag is a list without names, the length must equal cov!")
-    if (is.null(names(lag))) names(lag) <- cov
-    for (name in cov) lag[[name]] %<>% ifthen(0L)
+    if (is.null(names(lag))) names(lag) <- label
+    for (name in label) lag[[name]] %<>% ifthen(0L)
 
     covs <- vector("list", length(lag))
     for (i in seq_along(lag)) {
-        var  <- names(lag)[i]
-        lags <- lag[[i]]
-        covs[[i]] <- purrr::map(lags, function(l) {
-            if (l != 0) stlag(data, var, n = as.integer(l))
-            v = paste0("L", l, ".", var)
-            names(v) <- paste0("L", l, ".", var)
+        nm  <- names(lag)[i]
+        va  <- cov[match(nm, label)]
+        la  <- lag[[i]]
+        covs[[i]] <- lapply(la, function(l) {
+            if (l != 0) stlag(data, va, n = as.integer(l))
+            v = paste0("L", l, ".", va)
+            names(v) <- paste0("L", l, ".", nm)
             v
         })
     }
@@ -204,10 +157,10 @@ setcovlags <- function(data, cov, lag, label) {
     covs
 }
 
-# set treat related variables for panel data
+# set tmereat related variables for panel data
 setpaneltreat <- function(data) {
     stopifnot(all(c("ID", "time", "treat") %in% names(data)))
-    class(data$treat) <- "integer"
+    setattr(data$treat, "class", "integer")
     data[, treated := treat - ifempty(stlag(treat, time), 0) == 1L, by = "ID"] %>%
         .[(treated), treatStart := time] %>%
         setorder(ID, treatStart, na.last = TRUE) %>%
@@ -222,7 +175,7 @@ setpaneltreat <- function(data) {
 #' get treated and control group match table
 #'
 #' @export
-getmatchtable_panel <- function(data, ...) {
+getmatchtable_panel <- function(data, ...) {s
     stopifnot(require(MatchIt))
     match_args <- list(...)
     stopifnot(stxtcheck(datadata)[[1]])
@@ -237,4 +190,42 @@ getmatchtable_panel <- function(data, ...) {
     for (t in unique(sample$treatStart)) {
         m <- do.call(MatchIt::matchit, match_args)
     }
+}
+
+# perform propensity matching
+psm <- function(sample, tStart, args, covlabel = NULL) {
+    neededvars <- c("ID", "time", "treat", "treatStart", "matchID", "pscore")
+    stopifnot(all(neededvars %in% names(sample)))
+
+    args$data <- local({
+        keep <- sample$time == tStart & (
+            (sample$treat & sample$treatStart == tStart) |
+            (!sample$treat & is.na(sample$matchID))
+        )
+        sample[keep]
+    })
+    args$distance <- args$data$pscore
+    log <- tryCatch(
+        do.call(MatchIt::matchit, args),
+        error = function(cond) {
+            if (grepl("No units", cond)) return(cond$message)
+            stop(cond)
+        }
+    )
+
+    match_new <- local({
+        cID <- args$data$ID[as.integer(log$match.matrix)]
+        tID <- args$data$ID[as.integer(rownames(log$match.matrix))]
+        data.table(ID = c(tID, cID),
+                    match_new = rep(paste(tID, cID, sep = "-"), 2)) %>%
+        .[!is.na(ID)] %>%
+        .[grepl("NA", match_new), match_new := ""] %>%
+        .[sample, on = "ID"] %>%
+        .[, match_new]
+    })
+
+    sample[, matchID := ifelse(is.na(matchID), ..match_new, matchID)]
+    if (!is.null(log$X) && !is.null(covlabel))
+        names(log$X) <- covlabel
+    return(log)
 }

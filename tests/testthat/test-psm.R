@@ -7,15 +7,17 @@ test_that("Test calculate propensity score for panel data", {
                   .[, treat := year >= (ID %% 4) + 2002]
               stxtset(data, "ID", "year")
               result <- stxtpsm(data, "treat", c("mpg", "cyl"), 1L)
-              expect_equal(dim(result$data), c(22, 6))
+              expect_equal(dim(result$data), c(14, 6))
               expect_equal(names(result$data)[5:6], c("pscore", "matchID"))
               expect_true(all(between(result$data$pscore, 0, 1)))
               expect_false(anyNA(result$data$pscore))
               expect_equal(anyDuplicated(result$data[1:2]), 0L)
+              expect_equal(result$check$balance$variable[1], "Propensity Score")
 
+              print(result)
               result2 <- stxtpsm(data, "treat", c("mpg", "cyl"), lag= list(mpg = c(0,1), cyl = 1),
                                  method = "probit")
-              expect_equal(dim(result2$data), c(22, 6))
+              expect_equal(dim(result2$data), c(14, 6))
               expect_equal(dim(result2$check$balance), c(4, 6))
 })
 
