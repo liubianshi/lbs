@@ -105,6 +105,7 @@ stxtpsm <- function(data, treat, cov, lag = NULL, method = "logit", ...) {
         }
     })
 
+
     sample %<>% .[, .(ID, time, treat, treatStart, pscore, matchID)]
     setnames(sample, c("ID", "time"), keep_vars[1:2])
     stxtset(sample, keep_vars[1], keep_vars[2])
