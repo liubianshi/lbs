@@ -2,7 +2,7 @@
 % Please edit documentation in R/panel.R
 \name{stxtcheck}
 \alias{stxtcheck}
-\title{check whether a data.frame is a panel table}
+\title{check whether a data.frame is a panel table --------------------------------}
 \usage{
 stxtcheck(df)
 }
@@ -10,5 +10,5 @@ stxtcheck(df)
 \item{df}{data.frame object}
 }
 \description{
-check whether a data.frame is a panel table
+check whether a data.frame is a panel table --------------------------------
 }

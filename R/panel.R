@@ -1,4 +1,4 @@
-#' check whether a data.frame is a panel table
+#' check whether a data.frame is a panel table --------------------------------
 #'
 #' @param df data.frame object
 #' @export
@@ -44,7 +44,7 @@ stxtset <- function(df, id, time) {
 }
 
 #' calculate propensity score for panel data
-#' 
+#'
 #' @param data a data.table labeld as panel data by `stxtset()`
 #' @param treat variable name that indicates whether the unit is treated
 #' @param cov character vector indicating the set of covarieates
@@ -176,10 +176,10 @@ setpaneltreat <- function(data) {
 #' get treated and control group match table
 #'
 #' @export
-getmatchtable_panel <- function(data, ...) {s
+getmatchtable_panel <- function(data, ...) {
     stopifnot(require(MatchIt))
     match_args <- list(...)
-    stopifnot(stxtcheck(datadata)[[1]])
+    stopifnot(stxtcheck(data)[[1]])
     stopifnot(all(c("treatStart", "pscore") %in% names(data)))
     sample <- data[, .SD, .SDcols = c(attr(data, "xt"), "treatStart", "pscore")]
     names(sample) <- c("ID", "time", "treatStart", "pscore")
