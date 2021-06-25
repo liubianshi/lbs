@@ -3,7 +3,7 @@
 #' @title: ggplot theme, based on `cowplot` 的 `theme_minimal_grid`
 #'
 #' @export
-lbs_theme_miminal <- function(legend.position = "top",
+lbs_theme_minimal <- function(legend.position = "top",
                               dpi = 600L,
                               fontfamily = getOption("font.serif")) {
     fontfamily %<>% ifthen("serif")
