@@ -28,7 +28,8 @@ gen_statistic_table <- function(
     out$stat$`__1` <- 1
     out$stat$`__2` <- seq_len(nrow(out$stat))
 
-    for (i in seq_along(format)[-1]) {
+    for (i in seq_along(format)) {
+        if (i == 1) next 
         out[[i]] <- coef2str(get(names(format)[i]), parse_c(format[i]))
         out[[i]]$`__1` <- i
         out[[i]]$`__2` <- seq_len(nrow(out[[i]]))
@@ -38,37 +39,6 @@ gen_statistic_table <- function(
     data.table::rbindlist(out) %>%
         data.table::setorderv(c("__2", "__1")) %>%
         .[, !c("__1", "__2")]
-}
-
-# strformat: format numeric vector --------------------------------------------
-strformat <- function(x, digits = 3L, nsmall = 0L, width = NULL,
-                      big.mark = ",", na.replace = "") {
-    stopifnot(is.numeric(x))
-    if (is.integer(x)) return(as.character(x))
-    one <- function(z, nsmall, width, digits, na.replace, big.mark) {
-        stopifnot(is.numeric(z) && length(z) == 1L)
-        if (is.na(z)) return(na.replace)
-        if (is.integer(z)) return(format(z, digits = 0, nsmall = 0,
-                                         width = width, big.mark = big.mark))
-        t <- abs(z)
-        n <- if (t == 0) {
-                format(z, digits = 0, nsmall = nsmall, width = width, big.mark = big.mark)
-            } else if (t < 1) {
-                format(z, nsmall = nsmall, width = width,
-                       digits = max(0, digits - as.integer(log10(1/t))),
-                       , big.mark = big.mark)
-            } else if (t < 10) {
-                format(z, nsmall = nsmall, width = width, digits = digits,
-                       big.mark = big.mark )
-            } else if (log10(t) < digits + 1) {
-                format(z, digits = digits - as.integer(log10(t)),
-                       nsmall = max(0, nsmall - as.integer(log10(t))),
-                       width = width, big.mark = big.mark)
-            } else {
-                format(z, digits = 0, width = width, big.mark = big.mark)
-            }
-    }
-    as.character(lapply(x, one, nsmall, width, digits, na.replace, big.mark))
 }
 
 parse_c <- function(char) {
@@ -95,7 +65,7 @@ coef2str <- function(data, fmt) {
 
     regnames <- names(data)[purrr::map_lgl(data, is.numeric)]
     fm <- function(x, digits = NULL, l_par, r_par) {
-        y <- strformat(x, digits = digits, nsmall = digits, na.replace = "") %>% trimws()
+        y <- stformat(x, digits = digits, nsmall = digits, na.replace = "") %>% trimws()
         ifelse(y == "", "", paste0(l_par, y, r_par))
     }
     for (i in seq_along(regnames))

@@ -19,10 +19,10 @@ These objects are imported from other packages. Follow the links
 below to see their documentation.
 
 \describe{
-  \item{data.table}{\code{\link[data.table:assign]{:=}}, \code{\link[data.table]{as.data.table}}, \code{\link[data.table]{data.table}}, \code{\link[data.table]{setDT}}, \code{\link[data.table]{setattr}}}
+  \item{data.table}{\code{\link[data.table:assign]{:=}}, \code{\link[data.table]{as.data.table}}, \code{\link[data.table]{data.table}}, \code{\link[data.table]{setattr}}, \code{\link[data.table]{setDT}}}
 
   \item{magrittr}{\code{\link[magrittr:compound]{\%<>\%}}, \code{\link[magrittr:pipe]{\%>\%}}}
 
-  \item{rlang}{\code{\link[rlang:nse-force]{!!}}, \code{\link[rlang:nse-force]{!!!}}}
+  \item{rlang}{\code{\link[rlang:injection-operator]{!!}}, \code{\link[rlang:splice-operator]{!!!}}}
 }}
 

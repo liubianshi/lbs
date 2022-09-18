@@ -64,32 +64,42 @@ stlabel <- function(df, var, attr, type = "label") {
 #' @export
 stformat <- function(x, digits = 3L, nsmall = 3L, width = NULL,
                       big.mark = ",", na.replace = "") {
-    one <- function(z, nsmall, width, digits, na.replace, big.mark) {
-        if (is.na(z)) return(na.replace)
-        if (is.integer(z)) return(format(z, digits = 0, nsmall = 0,
-                                         width = width, big.mark = big.mark))
-        t <- abs(z)
-        n <- if (t == 0) {
-                format(z, digits = 0, nsmall = nsmall, width = width, big.mark = big.mark)
-            } else if (t < 1) {
-                format(z, nsmall = nsmall, width = width,
-                       digits = max(0, digits - as.integer(log10(1/t))),
-                       , big.mark = big.mark)
-            } else if (t < 10) {
-                format(z, nsmall = nsmall, width = width, digits = digits,
-                       big.mark = big.mark )
-            } else if (log10(t) < digits + 1) {
-                format(z, digits = digits - as.integer(log10(t)),
-                       nsmall = max(0, nsmall - as.integer(log10(t))),
-                       width = width, big.mark = big.mark)
-            } else {
-                format(z, digits = 0, width = width, big.mark = big.mark)
-            }
-    }
-    if (!is.numeric(x)) stop("x must be numeric vector")
-    if (is.integer(x)) return(as.character(x))
-    as.character(lapply(x, one, nsmall, width, digits, na.replace, big.mark))
+    if (!is.numeric(x)) 
+        stop("x must be numeric vector")
+    if (is.integer(x))
+        return(format(x, width = width, big.mark = big.mark))
+    as.character(lapply(x, format_one_num, nsmall, width, digits, na.replace, big.mark))
 }
+format_one_num <- function(z, nsmall, width, digits, na.replace, big.mark) {
+    if (is.na(z)) return(na.replace)
+    stopifnot(is.numeric(z) && length(z) == 1L)
+    if (is.null(digits)) stop("Must set digits", call. = FALSE)
+    digits <- as.integer(digits)
+    if (is.integer(z)) {
+        return(format(z, width = width, big.mark = big.mark))
+    }
+    if (is.null(width)) {
+        width = digits + 3
+    } else if (width <= digits) {
+        stop("Error: width must larger than digits", call. = FALSE)
+    }
+    fo <- function(x, d = NULL, n = 0L, w = NULL, b = "") {
+        format(x, digits = d, nsmall = n, width = w, big.mark = b)
+    }
+    decbits <- if (abs(z) < 1) {
+        width - 0
+    } else {
+        width - as.integer(log10(abs(round(z, digits = 0L)))) - 2
+    }
+    if (decbits >= digits) {
+       fo(round(z, digits = digits),  digits, digits, width)
+    } else if (decbits > 0) {
+       fo(round(z, digits = decbits), decbits, decbits, width, big.mark)
+    } else {
+       fo(round(z, digits = 0), w = width, b = big.mark)
+    }
+}
+
 
 #' stata-style sumarisze
 #'
