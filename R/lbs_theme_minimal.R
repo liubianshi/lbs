@@ -8,17 +8,18 @@ lbs_theme_minimal <- function(legend.position = "top",
                               fontfamily = getOption("font.serif")) {
     fontfamily %<>% ifthen("serif")
     textsize <- list(
-        note   = (dpi / 100) * 8,
-        axis   = (dpi / 100) * 9,
-        normal = (dpi / 100) * 10,
-        stitle = (dpi / 100) * 11,
-        title  = (dpi / 100) * 12
+        note   = (dpi / 600) * 8,
+        axis   = (dpi / 600) * 9,
+        normal = (dpi / 600) * 10,
+        stitle = (dpi / 600) * 11,
+        title  = (dpi / 600) * 12
     )
 
     cowplot::theme_minimal_hgrid() +
     ggplot2::theme(
         text                 = element_text(family = fontfamily, size = textsize$normal, colour = "black"),
         aspect.ratio         = 0.618,
+        plot.tag             = element_text(size = textsize$note, colour = "black"),
         plot.title           = element_text(hjust = 0.5),
         plot.margin          = margin(1, 1, 1, 1, "mm"),
         axis.text            = element_text(size = textsize$axis, colour = "black"),
