@@ -39,11 +39,11 @@ Calculate the lag/forward terms of variables and vectors
 }
 \section{Methods (by class)}{
 \itemize{
-\item \code{default}: Calculate lag term of vector
+\item \code{stlag(default)}: Calculate lag term of vector
 
-\item \code{data.frame}: Calculate lag terms of data.frame/data.table variables
+\item \code{stlag(data.frame)}: Calculate lag terms of data.frame/data.table variables
+
 }}
-
 \examples{
 time = rep(2001:2006)
 x = sample(6)

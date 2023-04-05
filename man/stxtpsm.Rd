@@ -4,7 +4,16 @@
 \alias{stxtpsm}
 \title{calculate propensity score for panel data}
 \usage{
-stxtpsm(data, treat, cov, lag = NULL, method = "logit", ...)
+stxtpsm(
+  data,
+  treat,
+  cov,
+  lag = NULL,
+  id = NULL,
+  time = NULL,
+  method = "logit",
+  ...
+)
 }
 \arguments{
 \item{data}{a data.table labeld as panel data by \code{stxtset()}}
@@ -17,6 +26,9 @@ stxtpsm(data, treat, cov, lag = NULL, method = "logit", ...)
 
 \item{method}{a string indicating the method used to calcuate propensity
 score which will be passed to \code{binomial()} as augument \code{link}.}
+}
+\value{
+a list with match result, match log and balance check result
 }
 \description{
 calculate propensity score for panel data

@@ -6,11 +6,11 @@
 \usage{
 genformula(
   varlist,
+  method = NULL,
   fe = NULL,
   cluster = NULL,
-  indep_en = NULL,
+  en = NULL,
   iv = NULL,
-  method = NULL,
   ...
 )
 }
@@ -23,9 +23,9 @@ genformula(
 
 \item{cluster:}{cluster varaible, optional}
 
-\item{indep_en:}{endogenous independent variables, optional}
+\item{en:}{endogenous independent variables, optional}
 
-\item{iv:}{Instrumental variables, must longer than \code{indep_en}}
+\item{iv:}{Instrumental variables, must longer than \code{en}}
 
 \item{method:}{Formula usage scenario, default is felm}
 }

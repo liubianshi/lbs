@@ -12,13 +12,13 @@ test_that("Test calculate propensity score for panel data", {
               expect_true(all(between(result$data$pscore, 0, 1)))
               expect_false(anyNA(result$data$pscore))
               expect_equal(anyDuplicated(result$data[1:2]), 0L)
-              expect_equal(result$check$balance$variable[1], "Propensity Score")
+              expect_equal(result$check$after_match$variable[1], "pscore")
 
               print(result)
               result2 <- stxtpsm(data, "treat", c("mpg", "cyl"), lag= list(mpg = c(0,1), cyl = 1),
                                  method = "probit")
               expect_equal(dim(result2$data), c(14, 6))
-              expect_equal(dim(result2$check$balance), c(4, 6))
+              expect_equal(dim(result2$check$after_match), c(4, 6))
 })
 
 #> test_that("Test complex psm", {
