@@ -8,11 +8,11 @@ lbs_theme_minimal <- function(legend.position = "top",
                               fontfamily = getOption("font.serif")) {
     fontfamily %<>% ifthen("serif")
     textsize <- list(
-        note   = (dpi / 600) * 8,
-        axis   = (dpi / 600) * 9,
-        normal = (dpi / 600) * 10,
-        stitle = (dpi / 600) * 11,
-        title  = (dpi / 600) * 12
+        note   = (dpi / 300) * 8,
+        axis   = (dpi / 300) * 9,
+        normal = (dpi / 300) * 10,
+        stitle = (dpi / 300) * 11,
+        title  = (dpi / 300) * 12
     )
 
     cowplot::theme_minimal_hgrid() +

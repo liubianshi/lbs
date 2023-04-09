@@ -189,10 +189,10 @@ standardize_cov_lag <- function(cov_names, lag_list = NULL) {
 
 cal_treated_start_time <- function(time, treat) {
     setattr(treat, "class", "logical")
-    setattr(time, "class", "integer")
+    setattr(time,  "class", "integer")
     L.treat <- stlag(treat, time, 1L) %>% ifempty(0)
     treatStart <- if (max(treat, na.rm = TRUE) == 0) {
-        NA
+        NA_integer_ 
     } else {
         time[treat - L.treat == 1] %>% min(na.rm = TRUE)
     }
