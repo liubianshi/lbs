@@ -58,19 +58,15 @@ psm <- function(sample, id, treat, pscore, args) {
     rownames(sample) <- NULL
     args$data <- sample
     args$distance <- args$data[[pscore]]
-    match_result <- tryCatch(
-        do.call(MatchIt::matchit, args),
-        error = function(cond) {
-            if (grepl("No units", cond)) return(cond$message)
-            stop(cond)
-        }
-    )
+    match_result <- do.call(MatchIt::matchit, args)
+
     control_list <- sample[[id]][as.integer(match_result$match.matrix)]
     treated_list <- sample[[id]][as.integer(rownames(match_result$match.matrix))]
-    match_result$match_table <-
-        data.table(ID      = c(treated_list, control_list),
-                   matchID = rep(paste(treated_list, control_list, sep = "-"), 2)) %>%
-        .[!(is.na(ID) | grepl("NA", matchID))]
+    match_result$match_table <- data.table(
+        ID      = c(treated_list, control_list),
+        matchID = rep(paste(treated_list, control_list, sep = "-"), 2)
+    )[!(is.na(ID) | grepl("NA", matchID))]
+
     match_result
 }
 
@@ -95,11 +91,11 @@ stxtpsm <- function(data, treat, cov, lag  = NULL, id     = NULL,
     stopifnot(!anyDuplicated(data[, c(id, time)]))
 
     # prepare standardized data for match
-    sample <- prepare_sample_for_match(data, id, time, treat, cov, lag, method)
-    match_cov_names <-attr(sample, "covariates") 
-    match_result <- match_by_treat_start_date(sample, matchit_args)
-    match_table <- match_result$result
-    match_log   <- match_result$log
+    sample          <- prepare_sample_for_match(data, id, time, treat, cov, lag, method)
+    match_cov_names <- attr(sample, "covariates")
+    match_result    <- match_by_treat_start_date(sample, matchit_args)
+    match_table     <- match_result$result
+    match_log       <- match_result$log
 
     sample <- match_table[sample, on = "ID"] %>%
         setorder(matchID, -TreatStart) %>%
@@ -188,8 +184,8 @@ standardize_cov_lag <- function(cov_names, lag_list = NULL) {
 }
 
 cal_treated_start_time <- function(time, treat) {
-    setattr(treat, "class", "logical")
-    setattr(time,  "class", "integer")
+    time <- as.integer(time)
+    treat <- as.logical(treat)
     L.treat <- stlag(treat, time, 1L) %>% ifempty(0)
     treatStart <- if (max(treat, na.rm = TRUE) == 0) {
         NA_integer_ 
@@ -224,21 +220,44 @@ diff_between_treat_control <- function(data, treat, covs, pscore = NULL) {
 match_by_treat_start_date <- function(data, args) {
     if (!require(MatchIt)) stop("Pleas install package MatchIt first")
     stopifnot(inherits(data, "datatable_for_match"))
-    args$formula <- attr(data, "pscore_formula")
+    args$formula  <- attr(data, "pscore_formula")
+    args$mahvars  <- args$formula[-2] # remote dependent variable from formula
+    args$caliper  <- ifthen(args$caliper, 0.05)
 
-    match_table <- data.table(ID = unique(data$ID), matchID = NA)
-    match_by_time <- intersect(data$Time, data$TreatStart) %>% na.omit() %>% sort()
+    match_table   <- data.table(ID = unique(data$ID), matchID = NA)
+    match_by_time <- sort(na.omit(intersect(data$Time, data$TreatStart)))
 
     match_results <- purrr::map(match_by_time, function(t) {
-        keep <- data$Time == t &
+        keep <- data$Time == t                               &
                 data$ID %in% match_table[is.na(matchID), ID] &
                 (!data$Treat | (data$Treat & data$TreatStart == t))
         sample <- data[keep] 
         rownames(sample) <- NULL 
-        match_result <- psm(sample, "ID", "Treat", "pscore", args)
+
+        match_result <- tryCatch(
+            psm(sample, "ID", "Treat", "pscore", args),
+            error = function(cond) {
+                if (grepl("No units", cond)) {
+                    message(gettextf("Time %d: %s", t, cond$message))
+                    return(NULL)
+                }
+                stop(cond)
+            }
+        )
+
+        if (is.null(match_result)) {
+            return(NULL)
+        }
+
         match_table <<- match_result$match_table %>%
             .[match_table, on = "ID"] %>%
             .[, .(ID, matchID = ifelse(is.na(i.matchID), matchID, i.matchID))]
+
+        message(gettextf(
+            "Time %d: Number of obs.:  %d (original), %d (matched)", t,
+            nrow(match_result$X),
+            nrow(na.omit(match_result$match.matrix))
+        ))
         match_result
     })
     names(match_results) <- paste("Started Treated at", match_by_time)
