@@ -10,8 +10,11 @@ event_study_result <- function(data, id, time, output,
     sample <- as.data.table(data) %>%
         .[, .SD, .SDcols = c(id, time, group, treat_status, output, covs)] %>%
         na.omit(c(id, time, output, covs))
-    setnames(sample, c(id, time, covs), c("ID", "Time", paste0("cov_", covs)))
-    covs <- paste0("cov_", covs)
+    setnames(sample, c(id, time), c("ID", "Time"))
+    if (!is.null(covs)) {
+        setnames(sample, covs, paste0("cov_", covs))
+        covs <- paste0("cov_", covs)
+    }
     if (is.null(group)) {
         setnames(sample, treat_status, "Treat")
         sample[, Group := cal_treated_start_time(Time, Treat), by = "ID"]
