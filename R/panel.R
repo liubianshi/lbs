@@ -97,7 +97,8 @@ stxtpsm <- function(data, treat, cov, lag  = NULL, id     = NULL,
     match_table     <- match_result$result
     match_log       <- match_result$log
 
-    sample <- match_table[sample, on = "ID"] %>%
+    sample <-
+        match_table[sample, on = "ID"] %>%
         setorder(matchID, -TreatStart) %>%
         .[!isempty(matchID), TreatStart := last(TreatStart), by = "matchID"]
     
@@ -142,16 +143,18 @@ prepare_sample_for_match <- function(data, id, time, treat, cov, lag = NULL, met
     # cal cov lagged
     covs <- standardize_cov_lag(cov, lag)
     covs %>% purrr::iwalk(function(lag, name) {
-        sample[, (lag$names) := cal_lag_of(.SD[[..name]], Time, ..lag$lags), by = "ID"]
+        lags     <- lag$lags$lag
+        cal_mean <- lag$lags$mean
+        sample[, (lag$names) := cal_lag_of(.SD[[..name]], Time, ..lags, ..cal_mean), by = "ID"]
     })
-    cov_names <- purrr::map(covs, "names") %>% unlist()
+    cov_names  <- purrr::map(covs, "names") %>% unlist()
 
-    keep_vars <- c("ID", "Time", "Treat", "TreatStart", cov_names)
+    keep_vars  <- c("ID", "Time", "Treat", "TreatStart", cov_names)
     keep_times <- unique(sample$TreatStart)
-    sample <- sample[, ..keep_vars]                   %>% 
-         .[!Treat | Time <= TreatStart]               %>% # drop observation treated more than one period
-         .[Time %in% keep_times]                      %>% # drop time without treated individual
-         na.omit(c("ID", "Time", "Treat", cov_names))
+    sample     <- sample[, ..keep_vars]                   %>%
+                  .[!Treat | Time <= TreatStart]          %>% # drop observation treated more than one period
+                  .[Time %in% keep_times]                 %>% # drop time without treated individual
+                  na.omit(c("ID", "Time", "Treat", cov_names))
 
     propensity_score <- cal_propensity_score(sample, "Treat", cov_names, method)
     sample$pscore <- propensity_score$result
@@ -159,30 +162,34 @@ prepare_sample_for_match <- function(data, id, time, treat, cov, lag = NULL, met
     setattr_formatch(sample, propensity_score$formula, cov_names, method)
 }
 
-cal_lag_of <- function(var, time, lags) {
+cal_lag_of <- function(var, time, lags, mean = FALSE) {
     lags <- as.integer(lags)
-    lapply(lags, function(l) if (l == 0) var else stlag(var, time, l))
+    vars <- lapply(lags, function(l) if (l == 0) var else stlag(var, time, l))
+    if (length(vars) > 1 & isTRUE(mean)) {
+        vars <- purrr::reduce(vars, `+`) / length(vars)
+    }
+    vars
 }
 
 standardize_cov_lag <- function(cov_names, lag_list = NULL) {
-    lag_list %<>% ifthen(0L)
-    stopifnot(is.numeric(lag_list) || is.list(lag_list))
-    if (is.numeric(lag_list))
-        lag_list <- rep_len(as.integer(lag_list), length(cov_names)) %>% as.list()
-    if (is.null(names(lag_list)) && length(lag_list) != length(cov_names))
-        stop("If lag is a list without names, the length must equal cov!")
-
-    if (is.null(names(lag_list))) names(lag_list) <- cov_names
-    covs <- purrr::map2(cov_names, lag_list, ~ {
-                list(names = ifelse(.y == 0, .x,
-                             ifelse(.y == 1, paste0("L.", .x),
-                                             paste0("L", .y, ".", .x))),
-                     lags  = .y)
-            })
-    names(covs) <- cov_names
-    covs
+    lag_list <- standarise_lag_with_covs(lag_list, cov_names)
+    purrr::imap(lag_list, function(lag, cov_name) {
+        if (length(lag$lag) > 1 & isTRUE(lag$mean)) {
+            list(names = paste0("M.", cov_name), lags = lag)
+        } else {
+            list(names = ifelse(lag$lag == 0, cov_name,
+                         ifelse(lag$lag == 1, paste0("L.", cov_name),
+                                              paste0("L", lag$lag, ".", cov_name))),
+                 lags  = lag)
+        }
+    })
 }
 
+#' calculate the time when an individual was first treated
+#' @param time time
+#' @param treat whether treated at specific time
+#'
+#' @export
 cal_treated_start_time <- function(time, treat) {
     time <- as.integer(time)
     treat <- as.logical(treat)
@@ -217,51 +224,76 @@ diff_between_treat_control <- function(data, treat, covs, pscore = NULL) {
     .[, variable := ..covs]
 }
 
-match_by_treat_start_date <- function(data, args) {
+get_vars_from_formula <- function(fml) {
+    if (is.name(fml)) return(as.character(fml))
+    unlist(lapply(fml[-1], get_vars_from_formula))
+}
+
+match_by_treat_start_date <- function(data, args, breaks = NULL) {
     if (!require(MatchIt)) stop("Pleas install package MatchIt first")
     stopifnot(inherits(data, "datatable_for_match"))
+
     args$formula  <- attr(data, "pscore_formula")
     args$mahvars  <- args$formula[-2] # remote dependent variable from formula
     args$caliper  <- ifthen(args$caliper, 0.05)
+    covs <- get_vars_from_formula(args$mahvars)
 
-    match_table   <- data.table(ID = unique(data$ID), matchID = NA)
-    match_by_time <- sort(na.omit(intersect(data$Time, data$TreatStart)))
-
-    match_results <- purrr::map(match_by_time, function(t) {
-        keep <- data$Time == t                               &
-                data$ID %in% match_table[is.na(matchID), ID] &
-                (!data$Treat | (data$Treat & data$TreatStart == t))
-        sample <- data[keep] 
-        rownames(sample) <- NULL 
-
-        match_result <- tryCatch(
-            psm(sample, "ID", "Treat", "pscore", args),
-            error = function(cond) {
-                if (grepl("No units", cond)) {
-                    message(gettextf("Time %d: %s", t, cond$message))
-                    return(NULL)
-                }
-                stop(cond)
-            }
-        )
-
-        if (is.null(match_result)) {
-            return(NULL)
+    start_time_groups <- local({
+        group_time_with_breaks  <- function(t, b, m = min(t), M = max(t)) {
+            if (m == M || is.null(b)) return(as.list(t))
+            b <- c(m, b[b %between% t], M) %>% unique() %>% sort()
+            purrr::map2(b[-length(b)], b[-1], ~ if (.x == b[1]) t[t >= .x & t <= .y]
+                                                else            t[t >  .x & t <= .y])
         }
-
-        match_table <<- match_result$match_table %>%
-            .[match_table, on = "ID"] %>%
-            .[, .(ID, matchID = ifelse(is.na(i.matchID), matchID, i.matchID))]
-
-        message(gettextf(
-            "Time %d: Number of obs.:  %d (original), %d (matched)", t,
-            nrow(match_result$X),
-            nrow(na.omit(match_result$match.matrix))
-        ))
-        match_result
+        start_times <- sort(na.omit(intersect(data$Time, data$TreatStart)))
+        r <- group_time_with_breaks(start_times, na.omit(breaks))
+        names(r) <- purrr::map_chr(r, ~ paste("Treat Start:", paste(.x, collapse = ", ")))
+        r
     })
-    names(match_results) <- paste("Started Treated at", match_by_time)
-    list(result = match_table, log = match_results)
+
+    sample_groups <- purrr::map(start_time_groups, function(start_times){
+        data[
+            i       = { times <- get("start_times", parent.frame(n = 3))
+                        Time %in% times & (!Treat | (Treat & TreatStart %in% times)) },
+            j       = c(lapply(.SD, mean, na.rm = TRUE)),
+            by      = c("ID", "Treat"),
+            .SDcols = c("pscore", covs)
+        ]
+    })
+
+    results <- local({
+        match_table   <- data.table(ID = unique(data$ID), matchID = NA)
+        update_match_table <- function(sample, info) {
+            individuals_not_yet_matched <- match_table[is.na(matchID), ID]
+            sample <- sample[ID %in% individuals_not_yet_matched]
+            match_result <- tryCatch(
+                psm(sample, "ID", "Treat", "pscore", args),
+                error = function(cond) {
+                    if (grepl("No units", cond)) {
+                        message(gettextf("%s: %s", info, cond$message))
+                    } else stop(cond)
+                }
+            )
+            if (is.null(match_result)) return(NULL)
+            match_info <- gettextf("%s: \n\tNumber of obs.: %d (original), %d (matched)\n",
+                                   info,
+                                   nrow(match_result$X),
+                                   nrow(na.omit(match_result$match.matrix)))
+            message(match_info)
+
+            matchID_for_update <- do.call(
+                function(id, table, names = c("ID", "matchID")) {
+                    table[[names[2]]][match(id, table[[names[1]]])]
+                },
+                list(id = match_table$ID, table = match_result$match_table)
+            )
+            match_table[, matchID := ifelse(is.na(matchID), ..matchID_for_update, matchID)]
+
+            match_result
+        }
+        match_results <- purrr::imap(sample_groups, ~ update_match_table(.x, .y))
+        list(result = match_table, log = match_results)
+    })
 }
 
 setattr_formatch <- function(data, formula, covnames, method) {
@@ -273,3 +305,61 @@ setattr_formatch <- function(data, formula, covnames, method) {
     data.table::setattr(data, "pscore_method", method)
     data.table::setattr(data, "class", c("datatable_for_match", class(data)))
 }
+
+standarise_lag_with_covs <- function(lag_list, covs) {
+    stopifnot(is.null(lag_list) || is.numeric(lag_list) || is.list(lag_list))
+    if (is.null(lag_list) || is.numeric(lag_list)) {
+        lag_list <- purrr::map(covs, ~ standarise_lag(lag_list))
+    } else {
+        lag_default <- list(lag = 0L, mean = FALSE) 
+        if ("mean" %in% names(lag_list)) {
+            lag_default <- list(lag = 0L, mean = lag_list$mean) 
+            lag_list$mean <- NULL
+        }
+        if (is.null(names(lag_list)) || all(names(lag_list) == "")) {
+            if (length(lag_list) == 1L) {
+                lag_list <- purrr::map(covs, ~ standarise_lag(lag_list[[1]], lag_default))
+            } else if (length(lag_list) == length(covs)) {
+                lag_list <- purrr::map2(lag_list, standarise_lag, lag_default = lag_default)
+            } else {
+                stop("length of `lag` not equal to length of `covs`", call. = FALSE)
+            }
+        } else {
+            lag_list <- purrr::map(covs, ~ standarise_lag(lag_list[[.x]], lag_default))
+        }
+    }
+    names(lag_list) <- covs
+    lag_list
+}
+
+standarise_lag <- function(lag = NULL, lag_default = list(lag = 0L, mean = FALSE)) {
+    lag_names <- names(lag_default)
+    error_message <- "lag setting error!"
+    if (is.list(lag) && length(lag) > 2L)
+        stop(error_message, call. = FALSE)
+    if (length(setdiff(names(lag), lag_names)) != 0L &&
+        any(setdiff(names(lag), lag_names) != ""))
+        stop(error_message, call. = FALSE)
+
+    if (length(lag) == 0L) lag <- lag_default
+    if (is.numeric(lag))   lag <- list(lag, lag_default[[2]])
+    
+    if (length(lag) == 1L) {
+        if (is.null(names(lag))) {
+            lag <- list(lag[[1]], lag_default[[2]])
+        } else {
+            miss_name <- setdiff(lag_names, names(lag))
+            lag[[miss_name]] <- lag_default[[miss_name]]
+        }
+    }
+    if (is.null(names(lag))) {
+        names(lag) <- lag_names
+    } 
+    if (any(names(lag) == "")) {
+        names(lag)[names(lag) == ""] <- setdiff(lag_names, names(lag))
+    }
+    lag
+}
+
+
+# vim: foldmethod=syntax

@@ -15,10 +15,11 @@ genformula <- function(varlist, method = NULL, fe = NULL, cluster = NULL,
     stopifnot(length(varlist) >= 2)
     method <- ifthen(method, "linear")
     switch(method,
-           linear = genformula_linear(varlist[1], varlist[-1]),
-           felm = genformula_felm(varlist[1], varlist[-1], fe, cluster, en, iv),
-           fixest = genformula_fixest(varlist[1], varlist[-1], fe, en, iv),
-           defualt = print("Not Support Yet")
+           linear       = genformula_linear(varlist[1], varlist[-1]),
+           felm         = genformula_felm(varlist[1], varlist[-1], fe, cluster, en, iv),
+           fixest       = genformula_fixest(varlist[1], varlist[-1], fe, en, iv),
+           fixest_sunab = genformula_fixest_sunab(varlist[1], varlist[-1], fe, ...),
+           defualt      = print("Not Support Yet")
     )
 }
 
@@ -60,3 +61,25 @@ genformula_felm <- function(dep, indep_ex, fe, cluster, en, iv) {
     }
     as.formula(paste0(c(dep_indep, fe, en, cluster), collapse = " | ")) 
 }
+
+genformula_fixest_sunab <- function(dep, indep, fe, ...) {
+    dep        <- as.symbol(dep)
+    indep      <- character_vector_to_linear_expression(indep)
+    fe         <- character_vector_to_linear_expression(fe)
+    sunab_args <- rlang::enexprs(...) %>%
+                  purrr::map(~ if (is.character(rlang::expr(!!.x))) as.symbol(.x)
+                               else                                 .x)
+    sunab      <- as.call(c(quote(sunab), sunab_args))
+
+    if (is.null(indep)) {
+        rlang::expr(!!dep ~ !!sunab | !!fe) %>% as.formula()
+    } else {
+        rlang::expr(!!dep ~ !!indep + !!sunab | !!fe) %>% as.formula()
+    }
+}
+
+character_vector_to_linear_expression <- function(x) {
+    if (is.null(x)) return(NULL)
+    purrr::map(x, as.symbol) %>% purrr::reduce(~ rlang::expr(!!.x + !!.y))
+}
+

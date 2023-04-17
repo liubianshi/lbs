@@ -8,7 +8,7 @@
 #' ascat(1:10, 5) # eqaul cut(1:10, c(1, 5, 10), include.lowest = TRUE)
 #' ascat(1:10, 5, c("less than or euqal to 5", "greater than 5"))
 #' @export
-ascat <- function(x, breaks, labels = NULL) {
+ascat <- function(x, breaks, labels = NULL, include.lowest = TRUE) {
     stopifnot(all(sort(breaks) == breaks))
     stopifnot(length(unique(breaks)) == length(breaks))
     stopifnot(!any(is.na(breaks)))
@@ -27,8 +27,11 @@ ascat <- function(x, breaks, labels = NULL) {
         labels[l - 1] <- gettextf("(%d,%d]", breaks[l-1], max)
         rm(l)
     }
+    if (isFALSE(include.lowest)) {
+        labels[1] <- gettextf("(%d,%d]", min, breaks[2])
+        breaks <- append(breaks, -Inf, 0)
+        labels <- append(labels, gettextf("[%d]", min), 0)
+    }
     stopifnot(length(breaks) - 1 == length(labels))
-
-    cut(x, breaks, labels, include.lowest = TRUE)
+    cut(x, breaks, labels, include.lowest = include.lowest)
 }
-

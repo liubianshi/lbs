@@ -4,7 +4,7 @@
 \alias{ascat}
 \title{Convert number to factor by inner breaks}
 \usage{
-ascat(x, breaks, labels = NULL)
+ascat(x, breaks, labels = NULL, include.lowest = TRUE)
 }
 \arguments{
 \item{x}{a numeric vector}
