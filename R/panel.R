@@ -291,6 +291,7 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
 
             match_result
         }
+
         match_results <- purrr::imap(sample_groups, ~ update_match_table(.x, .y))
         list(result = match_table, log = match_results)
     })
@@ -321,7 +322,7 @@ standarise_lag_with_covs <- function(lag_list, covs) {
             if (length(lag_list) == 1L) {
                 lag_list <- purrr::map(covs, ~ standarise_lag(lag_list[[1]], lag_default))
             } else if (length(lag_list) == length(covs)) {
-                lag_list <- purrr::map2(lag_list, standarise_lag, lag_default = lag_default)
+                lag_list <- purrr::map(lag_list, standarise_lag, lag_default = lag_default)
             } else {
                 stop("length of `lag` not equal to length of `covs`", call. = FALSE)
             }
