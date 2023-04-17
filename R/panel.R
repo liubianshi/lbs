@@ -300,10 +300,11 @@ setattr_formatch <- function(data, formula, covnames, method) {
     stopifnot(inherits(data, "data.table"))
     stopifnot(setequal(names(data), c("ID", "Time", "Treat", "TreatStart", "pscore", covnames)))
     setcolorder(data, c("ID", "Time", "Treat", "TreatStart", "pscore", covnames))
-    data.table::setattr(data, "covariates", covnames)
-    data.table::setattr(data, "pscore_formula", formula)
-    data.table::setattr(data, "pscore_method", method)
-    data.table::setattr(data, "class", c("datatable_for_match", class(data)))
+    data %>% data.table::setattr("covariates",     covnames) %>%
+             data.table::setattr("pscore_formula", formula)  %>%
+             data.table::setattr("pscore_method",  method)   %>%
+             data.table::setattr("class",          c("datatable_for_match", class(data)))
+    data
 }
 
 standarise_lag_with_covs <- function(lag_list, covs) {
