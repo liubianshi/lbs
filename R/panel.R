@@ -60,8 +60,18 @@ psm <- function(sample, id, treat, pscore, args) {
     args$distance <- args$data[[pscore]]
     match_result <- do.call(MatchIt::matchit, args)
 
-    control_list <- sample[[id]][as.integer(match_result$match.matrix)]
-    treated_list <- sample[[id]][as.integer(rownames(match_result$match.matrix))]
+    match_table <- (function(result) {
+        match <- data.table(treat_no   = as.integer(rownames(result$match.matrix)),
+                            control_no = as.integer(result$match.matrix))
+        if (!is.null(args$caliper)) {
+            dist  <- result$distance
+            match <- match[abs(dist[treat_no] - dist[control_no]) <= result$caliper ]
+        }
+        match
+    })(match_result)
+
+    control_list <- sample[[id]][match_table$control_no]
+    treated_list <- sample[[id]][match_table$treat_no]
     match_result$match_table <- data.table(
         ID      = c(treated_list, control_list),
         matchID = rep(paste(treated_list, control_list, sep = "-"), 2)
@@ -69,6 +79,8 @@ psm <- function(sample, id, treat, pscore, args) {
 
     match_result
 }
+
+
 
 #' calculate propensity score for panel data
 #'
@@ -232,11 +244,9 @@ get_vars_from_formula <- function(fml) {
 match_by_treat_start_date <- function(data, args, breaks = NULL) {
     if (!require(MatchIt)) stop("Pleas install package MatchIt first")
     stopifnot(inherits(data, "datatable_for_match"))
-
     args$formula  <- attr(data, "pscore_formula")
-    args$mahvars  <- args$formula[-2] # remote dependent variable from formula
     args$caliper  <- ifthen(args$caliper, 0.05)
-    covs <- get_vars_from_formula(args$mahvars)
+    covs <- get_vars_from_formula(args$formula)[-1]
 
     start_time_groups <- local({
         group_time_with_breaks  <- function(t, b, m = min(t), M = max(t)) {
