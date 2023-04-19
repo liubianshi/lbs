@@ -373,5 +373,88 @@ standarise_lag <- function(lag = NULL, lag_default = list(lag = 0L, mean = FALSE
     lag
 }
 
+#' nearest match with distance
+#' @export
+nearest_match <- function(data, treat, distance,
+                          discard = "both",
+                          caliper = 0.05,
+                          replace = FALSE, ...)
+{
+    other_args <- list(...)
+    stopifnot(all(c(treat, distance) %in% names(data))) 
+    stopifnot(length(unique(na.omit(data$treat))) == 2L)
+    data_for_match <- data[, .SD, .SDcols = c(treat, distance)][, no := .I] %>%
+                      na.omit(c(treat, distance))
+    setnames(data_for_match, c("treat", "distance", "no"))
+    data_for_match[, treat := { 
+        if      (is.factor(treat))  as.integer(treat) - 1L
+        else if (is.numeric(treat)) ifelse(treat == min(treat), 0L, 1L)
+        else                        stop("Treat must be factor or numeric", call. = FALSE)
+    }]
+
+    common_support <- data_for_match[, .(m = min(distance), M = max(distance)), by = treat]     %>%
+                                    .[, .(m = max(m), M = min(M))]                               %>%
+                                    do.call(function(m, M) if (m > M) NULL else c(m, M), .)
+    if (discard == "both") {
+        if (is.null(common_support)) stop("Common Support is empty!", call. = FALSE)
+        data_for_match <- data_for_match[distance %between% common_support]
+    }
+
+    if (!is.null(caliper) && ifthen(other_args$std.caliper, TRUE)) {
+        caliper <- sd(data_for_match$distance) * caliper
+    }
+
+    switch(
+        ifthen(other_args$m.order, "largest"),
+        largest  = {
+            setorder(data_for_match, -treat, -distance)
+        },
+        smallest = {
+            setorder(data_for_match, -treat, distance)
+        },
+        random   = {
+            data_for_match[, randno := sample.int(.N), by = treat]     %>%
+                setorder(-treat, randno)                               %>%
+                .[, randno := NULL]
+        }
+    )
+
+    match_args <- list(
+        treat            = data_for_match[treat == 1L, .(no, distance)],
+        control          = data_for_match[treat == 0L, .(no, distance)],
+        caliper          = caliper,
+        replace          = replace,
+        diff_process_fun = lbs:: ifthen(other_args$diff_process_fun, abs)
+    ) 
+    match_result <- do.call(query_valid_control_group, match_args)
+}
+
+query_valid_control_group <- function(treat, control,
+                                      caliper = NULL,
+                                      replace = FALSE,
+                                      diff_process_fun = abs) {
+    stopifnot(all(length(treat) == 2, length(control) == 2))
+    names(treat)   <- c("id", "score")
+    names(control) <- c("id", "score")
+    stopifnot(!anyDuplicated(control$id))
+
+    remaining_id <- control$id
+    matchID <- purrr::map(treat$score, ~ {
+        remaining <- control[id %in% remaining_id]
+        min_no    <- diff_process_fun(.x - remaining$score) %>% which.min()
+        min_value <- diff_process_fun(.x - remaining$score[min_no])
+        if (min_value > lbs::ifthen(caliper, Inf)) return(NA)
+
+        min_id <- remaining$id[min_no]
+        if (!isTRUE(replace)) {
+            remaining_id <<- remaining_id[remaining_id != min_id]
+        }
+        min_id
+    }) %>% unlist()
+
+    data.table(treatNO = treat$id, matchNO = matchID) %>%
+    setorder(treatNO) %>%
+    .[!is.na(matchNO)]
+}
 
 # vim: foldmethod=syntax
