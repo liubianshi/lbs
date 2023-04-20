@@ -4,7 +4,15 @@
 \alias{psm}
 \title{execute propensity match and return match result object with match table}
 \usage{
-psm(sample, id, treat, pscore, args)
+psm(
+  sample,
+  id,
+  treat,
+  pscore,
+  ...,
+  match_fun = nearest_match,
+  result_handle_fun = NULL
+)
 }
 \arguments{
 \item{sample}{a data.table object, one line per individual}
