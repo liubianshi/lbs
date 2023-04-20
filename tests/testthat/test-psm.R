@@ -14,11 +14,19 @@ test_that("Test calculate propensity score for panel data", {
               expect_equal(anyDuplicated(result$data[1:2]), 0L)
               expect_equal(result$check$after_match$variable[1], "pscore")
 
-              print(result)
               result2 <- stxtpsm(data, "treat", c("mpg", "cyl"), lag= list(mpg = c(0,1), cyl = 1),
-                                 method = "probit", caliper = 0.75)
+                                 method = "probit", discard = "none")
               expect_equal(dim(result2$data), c(14, 6))
               expect_equal(dim(result2$check$after_match), c(4, 6))
+
+              result3 <- stxtpsm(data, "treat", c("mpg", "cyl"), 1L,
+                                 caliper = 0.25,
+                                 std.caliper = TRUE)
+              expect_true(is.null(result3$check$after_match))
+
+              expect_message(stxtpsm(data, "treat", c("mpg", "cyl"),
+                                     lag= list(mpg = c(0,1), cyl = 1)),
+                             "Common Support is empty")
 })
 
 #> test_that("Test complex psm", {

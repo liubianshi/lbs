@@ -52,35 +52,34 @@ stxtset <- function(df, id, time) {
 #' @param args a list contain element to be passed to `MatchIt::matchid`
 #'
 #' @export
-psm <- function(sample, id, treat, pscore, args) {
+psm <- function(sample, id, treat, pscore, ...,
+                match_fun = nearest_match,
+                result_handle_fun = NULL) {
+    args <- list(...)
     stopifnot(all(c(id, treat, pscore) %in% names(sample)))
     stopifnot(!anyDuplicated(sample[[id]]))
     rownames(sample) <- NULL
     args$data <- sample
-    args$distance <- args$data[[pscore]]
-    match_result <- do.call(MatchIt::matchit, args)
-
-    match_table <- (function(result) {
-        match <- data.table(treat_no   = as.integer(rownames(result$match.matrix)),
-                            control_no = as.integer(result$match.matrix))
-        if (!is.null(args$caliper)) {
-            dist  <- result$distance
-            match <- match[abs(dist[treat_no] - dist[control_no]) <= result$caliper ]
-        }
-        match
-    })(match_result)
-
+    args$treat <- treat
+    args$distance <- pscore
+    match_result <- do.call(match_fun, args)
+    match_table <- if (is.null(result_handle_fun)) match_result$match_table
+                   else                            result_handle_fun(match_result)
     control_list <- sample[[id]][match_table$control_no]
     treated_list <- sample[[id]][match_table$treat_no]
     match_result$match_table <- data.table(
         ID      = c(treated_list, control_list),
         matchID = rep(paste(treated_list, control_list, sep = "-"), 2)
-    )[!(is.na(ID) | grepl("NA", matchID))]
+    )
 
     match_result
 }
 
-
+matchit_result_handle <- function(result) {
+    match <- data.table(treat_no   = as.integer(rownames(result$match.matrix)),
+                        control_no = as.integer(result$match.matrix))
+    na.omit(match)
+}
 
 #' calculate propensity score for panel data
 #'
@@ -245,7 +244,6 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
     if (!require(MatchIt)) stop("Pleas install package MatchIt first")
     stopifnot(inherits(data, "datatable_for_match"))
     args$formula  <- attr(data, "pscore_formula")
-    args$caliper  <- ifthen(args$caliper, 0.05)
     covs <- get_vars_from_formula(args$formula)[-1]
 
     start_time_groups <- local({
@@ -277,7 +275,10 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
             individuals_not_yet_matched <- match_table[is.na(matchID), ID]
             sample <- sample[ID %in% individuals_not_yet_matched]
             match_result <- tryCatch(
-                psm(sample, "ID", "Treat", "pscore", args),
+                do.call(psm, c(sample = list(sample),
+                               id = "ID",
+                               treat = "Treat",
+                               pscore = "pscore", args)),
                 error = function(cond) {
                     if (grepl("No units", cond)) {
                         message(gettextf("%s: %s", info, cond$message))
@@ -288,8 +289,9 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
             match_info <- gettextf("%s: \n\tNumber of obs.: %d (original), %d (matched)\n",
                                    info,
                                    nrow(match_result$X),
-                                   nrow(na.omit(match_result$match.matrix)))
+                                   nrow(nrow(match_result$match_table)))
             message(match_info)
+            if (nrow(match_result$match_table) == 0L) return(NULL)
 
             matchID_for_update <- do.call(
                 function(id, table, names = c("ID", "matchID")) {
@@ -377,17 +379,19 @@ standarise_lag <- function(lag = NULL, lag_default = list(lag = 0L, mean = FALSE
 #' @export
 nearest_match <- function(data, treat, distance,
                           discard = "both",
-                          caliper = 0.05,
+                          caliper = NULL,
+                          std.caliper = FALSE,
                           replace = FALSE, ...)
 {
     other_args <- list(...)
     stopifnot(all(c(treat, distance) %in% names(data))) 
-    stopifnot(length(unique(na.omit(data$treat))) == 2L)
+    stopifnot(length(unique(na.omit(data[[treat]]))) == 2L)
     data_for_match <- data[, .SD, .SDcols = c(treat, distance)][, no := .I] %>%
                       na.omit(c(treat, distance))
     setnames(data_for_match, c("treat", "distance", "no"))
     data_for_match[, treat := { 
         if      (is.factor(treat))  as.integer(treat) - 1L
+        else if (is.logical(treat)) as.integer(treat)
         else if (is.numeric(treat)) ifelse(treat == min(treat), 0L, 1L)
         else                        stop("Treat must be factor or numeric", call. = FALSE)
     }]
@@ -396,16 +400,18 @@ nearest_match <- function(data, treat, distance,
                                     .[, .(m = max(m), M = min(M))]                               %>%
                                     do.call(function(m, M) if (m > M) NULL else c(m, M), .)
     if (discard == "both") {
-        if (is.null(common_support)) stop("Common Support is empty!", call. = FALSE)
+        if (is.null(common_support))
+            stop("No units matched! Common Support is empty!", call. = FALSE)
         data_for_match <- data_for_match[distance %between% common_support]
     }
 
-    if (!is.null(caliper) && ifthen(other_args$std.caliper, TRUE)) {
+    if (!is.null(caliper) && isTRUE(std.caliper)) {
         caliper <- sd(data_for_match$distance) * caliper
     }
 
+    match_order = ifthen(other_args$m.order, "largest")
     switch(
-        ifthen(other_args$m.order, "largest"),
+        match_order,
         largest  = {
             setorder(data_for_match, -treat, -distance)
         },
@@ -419,31 +425,43 @@ nearest_match <- function(data, treat, distance,
         }
     )
 
+    diff_process_fun = ifthen(other_args$diff_process_fun, abs)
     match_args <- list(
         treat            = data_for_match[treat == 1L, .(no, distance)],
         control          = data_for_match[treat == 0L, .(no, distance)],
         caliper          = caliper,
         replace          = replace,
-        diff_process_fun = lbs:: ifthen(other_args$diff_process_fun, abs)
+        diff_process_fun = diff_process_fun 
     ) 
     match_result <- do.call(query_valid_control_group, match_args)
+
+    list(match_table      = na.omit(match_result),
+         common_support   = common_support,
+         caliper          = caliper,
+         X                = data_for_match,
+         discard          = discard,
+         replace          = replace,
+         diff_process_fun = diff_process_fun,
+         match_order      = match_order)
 }
 
 query_valid_control_group <- function(treat, control,
                                       caliper = NULL,
                                       replace = FALSE,
                                       diff_process_fun = abs) {
-    stopifnot(all(length(treat) == 2, length(control) == 2))
+    if (nrow(treat) == 0L)
+        return(NULL)
+    if (nrow(control) == 0L)
+        return(data.table(treat_no = treat[[1]], control_no = NA))
     names(treat)   <- c("id", "score")
     names(control) <- c("id", "score")
     stopifnot(!anyDuplicated(control$id))
-
     remaining_id <- control$id
     matchID <- purrr::map(treat$score, ~ {
         remaining <- control[id %in% remaining_id]
         min_no    <- diff_process_fun(.x - remaining$score) %>% which.min()
         min_value <- diff_process_fun(.x - remaining$score[min_no])
-        if (min_value > lbs::ifthen(caliper, Inf)) return(NA)
+        if (min_value > ifthen(caliper, Inf)) return(NA)
 
         min_id <- remaining$id[min_no]
         if (!isTRUE(replace)) {
@@ -452,9 +470,7 @@ query_valid_control_group <- function(treat, control,
         min_id
     }) %>% unlist()
 
-    data.table(treatNO = treat$id, matchNO = matchID) %>%
-    setorder(treatNO) %>%
-    .[!is.na(matchNO)]
+    data.table(treat_no = treat$id, control_no = matchID) %>% setorder(treat_no)
 }
 
 # vim: foldmethod=syntax
