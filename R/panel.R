@@ -63,8 +63,13 @@ psm <- function(sample, id, treat, pscore, ...,
     args$treat <- treat
     args$distance <- pscore
     match_result <- do.call(match_fun, args)
-    match_table <- if (is.null(result_handle_fun)) match_result$match_table
-                   else                            result_handle_fun(match_result)
+
+    match_table <- if (is.null(result_handle_fun)) {
+                        match_result$match_table
+                   } else {
+                       result_handle_fun(match_result)
+                   }
+
     control_list <- sample[[id]][match_table$control_no]
     treated_list <- sample[[id]][match_table$treat_no]
     match_result$match_table <- data.table(
@@ -208,7 +213,7 @@ cal_treated_start_time <- function(time, treat) {
     treatStart <- if (max(treat, na.rm = TRUE) == 0) {
         NA_integer_ 
     } else {
-        time[treat - L.treat == 1] %>% min(na.rm = TRUE)
+        min(time[treat - L.treat == 1], na.rm = TRUE)
     }
     treatStart
 }
@@ -240,16 +245,16 @@ get_vars_from_formula <- function(fml) {
     unlist(lapply(fml[-1], get_vars_from_formula))
 }
 
-match_by_treat_start_date <- function(data, args, breaks = NULL) {
-    if (!require(MatchIt)) stop("Pleas install package MatchIt first")
+match_by_treat_start_date <- function(data, args) {
     stopifnot(inherits(data, "datatable_for_match"))
     args$formula  <- attr(data, "pscore_formula")
     covs <- get_vars_from_formula(args$formula)[-1]
-
+    breaks <- with(args, exists("breaks")) %>% 
+              ifthen(args$breaks, NULL, fun = isTRUE)
     start_time_groups <- local({
         group_time_with_breaks  <- function(t, b, m = min(t), M = max(t)) {
             if (m == M || is.null(b)) return(as.list(t))
-            b <- c(m, b[b %between% t], M) %>% unique() %>% sort()
+            b <- c(m, b[b %in% t], M) %>% unique() %>% sort()
             purrr::map2(b[-length(b)], b[-1], ~ if (.x == b[1]) t[t >= .x & t <= .y]
                                                 else            t[t >  .x & t <= .y])
         }
@@ -276,8 +281,8 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
             sample <- sample[ID %in% individuals_not_yet_matched]
             match_result <- tryCatch(
                 do.call(psm, c(sample = list(sample),
-                               id = "ID",
-                               treat = "Treat",
+                               id     = "ID",
+                               treat  = "Treat",
                                pscore = "pscore", args)),
                 error = function(cond) {
                     if (grepl("No units", cond)) {
@@ -289,7 +294,7 @@ match_by_treat_start_date <- function(data, args, breaks = NULL) {
             match_info <- gettextf("%s: \n\tNumber of obs.: %d (original), %d (matched)\n",
                                    info,
                                    nrow(match_result$X),
-                                   nrow(nrow(match_result$match_table)))
+                                   nrow(match_result$match_table))
             message(match_info)
             if (nrow(match_result$match_table) == 0L) return(NULL)
 
