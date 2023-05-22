@@ -386,8 +386,7 @@ nearest_match <- function(data, treat, distance,
                           discard = "both",
                           caliper = NULL,
                           std.caliper = FALSE,
-                          replace = FALSE, ...)
-{
+                          replace = FALSE, ...) {
     other_args <- list(...)
     stopifnot(all(c(treat, distance) %in% names(data))) 
     stopifnot(length(unique(na.omit(data[[treat]]))) == 2L)
