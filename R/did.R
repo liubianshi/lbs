@@ -4,7 +4,8 @@ event_study_result <- function(data, id, time, output,
                                treat_status = NULL,
                                group = NULL,
                                never_treat = NULL,
-                               covs = NULL)
+                               covs = NULL,
+                               drop_exposure_list = -1)
 {
     stopifnot(!is.null(treat_status) | !is.null(group))
     sample <- as.data.table(data) %>%
@@ -25,7 +26,7 @@ event_study_result <- function(data, id, time, output,
     if (!is.null(never_treat) && !is.na(never_treat)) {
         sample[Group == never_treat, Group := NA]
     }
-    exposure_dummy <- generate_exposure_dummy_list(sample$Time, sample$Group)
+    exposure_dummy <- generate_exposure_dummy_list(sample$Time, sample$Group, drop_exposure_list)
     covs_coef      <- estimate_exposure_coef(data  = cbind(sample, exposure_dummy),
                                              dep   = output,
                                              indep = c(covs, names(exposure_dummy)),

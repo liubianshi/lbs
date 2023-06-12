@@ -1,4 +1,4 @@
-#' check whether a data.frame is a panel table --------------------------------
+#' check whether a data.frame is a panel table
 #'
 #' @param df data.frame object
 #' @export
@@ -146,7 +146,9 @@ diff_check <- function(var, data, over) {
     out
 }
 
-prepare_sample_for_match <- function(data, id, time, treat, cov, lag = NULL, method = "logit") {
+prepare_sample_for_match <- function(data, id, time, treat, cov,
+                                     lag = NULL,
+                                     method = "logit") {
     # extract needed variable
     keep_vars <- c(id, time, treat, cov)
     sample <- data.table::as.data.table(data)[, ..keep_vars]
@@ -351,7 +353,8 @@ standarise_lag_with_covs <- function(lag_list, covs) {
     lag_list
 }
 
-standarise_lag <- function(lag = NULL, lag_default = list(lag = 0L, mean = FALSE)) {
+standarise_lag <- function(lag = NULL,
+                           lag_default = list(lag = 0L, mean = FALSE)) {
     lag_names <- names(lag_default)
     error_message <- "lag setting error!"
     if (is.list(lag) && length(lag) > 2L)
@@ -400,9 +403,10 @@ nearest_match <- function(data, treat, distance,
         else                        stop("Treat must be factor or numeric", call. = FALSE)
     }]
 
-    common_support <- data_for_match[, .(m = min(distance), M = max(distance)), by = treat]     %>%
-                                    .[, .(m = max(m), M = min(M))]                               %>%
-                                    do.call(function(m, M) if (m > M) NULL else c(m, M), .)
+    common_support <-
+        data_for_match[, .(m = min(distance), M = max(distance)), by = treat]     %>%
+                     .[, .(m = max(m), M = min(M))]                               %>%
+                     do.call(function(m, M) if (m > M) NULL else c(m, M), .)
     if (discard == "both") {
         if (is.null(common_support))
             stop("No units matched! Common Support is empty!", call. = FALSE)
@@ -477,4 +481,4 @@ query_valid_control_group <- function(treat, control,
     data.table(treat_no = treat$id, control_no = matchID) %>% setorder(treat_no)
 }
 
-# vim: foldmethod=syntax
+# vim: foldmethod=expr
