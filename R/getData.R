@@ -38,7 +38,7 @@ getDataSQLite <- function(database, table, var = NULL,
         } else if (isFALSE(and)) {
             condition <- paste(condtion, collapse = " OR \n       ")
         } else {
-            stop("param 'and' only accept TRUE or FALSE") 
+            stop("param 'and' only accept TRUE or FALSE")
         }
     }
 
@@ -67,7 +67,7 @@ getDataSQLite <- function(database, table, var = NULL,
 #' @return return a data.frame contain data info
 #' @export
 getdatainfo <- function(database, table, var = NULL) {
-    database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
+    database_path <- Sys.getenv("SRDM_DATA_REPO_PATH")
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 
@@ -75,7 +75,7 @@ getdatainfo <- function(database, table, var = NULL) {
         sel <- gettextf("SELECT * FROM data_table WHERE name IN (\n\t%s)",
                         paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t"))
     } else if (isTRUE(var %in% c("all", "*"))) {
-        if (!(length(database) == 1 && length(table) == 1)) 
+        if (!(length(database) == 1 && length(table) == 1))
             stop("Query all variables only allowed in one table")
         sel <- gettextf("SELECT * FROM data_record WHERE name LIKE %s",
             paste0("'", database, ":", table, ":%'")
@@ -98,7 +98,7 @@ getdatainfo <- function(database, table, var = NULL) {
 #' @return All variable name and label stored in srdm repo
 #' @export
 getallvar <- function() {
-    database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
+    database_path <- Sys.getenv("SRDM_DATA_REPO_PATH")
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 
@@ -107,7 +107,7 @@ getallvar <- function() {
     varLabels    <- vars$label
     databaseList <- purrr::map_chr(varnames, 1)
     tableList    <- purrr::map_chr(varnames, 2)
-    varList      <- purrr::map_chr(varnames, 3) 
+    varList      <- purrr::map_chr(varnames, 3)
     invisible(data.table(database = databaseList,
                          table = tableList,
                          variable = varList,
@@ -120,7 +120,7 @@ getallvar <- function() {
 #' @return All tables name and label stored in srdm repo
 #' @export
 getalltable <- function() {
-    database_path <- file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), "srdm_dataRepo.sqlite")
+    database_path <- Sys.getenv("SRDM_DATA_REPO_PATH")
     con <- DBI::dbConnect(RSQLite::SQLite(), database_path)
     on.exit(DBI::dbDisconnect(con))
 

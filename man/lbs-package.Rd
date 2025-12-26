@@ -5,3 +5,10 @@
 \alias{lbs-package}
 \alias{lbs}
 \title{Personal use fucntion}
+\description{
+R functions for pernsonal use
+}
+\author{
+\strong{Maintainer}: Wei Luo \email{liu.bian.shi@gmail.com} (\href{https://orcid.org/YOUR-ORCID-ID}{ORCID})
+
+}

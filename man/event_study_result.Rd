@@ -12,7 +12,8 @@ event_study_result(
   treat_status = NULL,
   group = NULL,
   never_treat = NULL,
-  covs = NULL
+  covs = NULL,
+  drop_exposure_list = -1
 )
 }
 \description{
