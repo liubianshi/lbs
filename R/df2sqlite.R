@@ -70,7 +70,7 @@ df_srdm <- function(df, database, table, replace = FALSE,
 
     # check the integraty of data frame's attributes
     table_attr <- check_attr(df, quietly = TRUE)
-    table_attr["name"] = paste(database, table, sep = ":")
+    table_attr["name"] <- paste(database, table, sep = ":")
     stopifnot("keys" %in% names(table_attr))
     keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
     stopifnot(anyDuplicated(setDT(df)[, ..keys]) == 0)
@@ -107,7 +107,7 @@ df_srdm <- function(df, database, table, replace = FALSE,
 
     message("Began writing data to database")
     insert_result <- tryCatch(
-        df2sqlite(df, database, table, keys, replace, append),
+        df2parquet(df, database, table, replace, append),
         error = function(cond) {
             message(paste("File failed to written to", database))
             message("Here's the original error message:")
@@ -239,6 +239,56 @@ df2sqlite <- function(df, database, table, keys,
 
     if (table_exists && replace) DBI::dbExecute(con, sth_drop_bck)
     message("Data frame has been written successfully")
+    invisible(TRUE)
+}
+
+# Helper: resolve parquet file path for a given database+table
+parquet_path <- function(database, table) {
+    base <- if (Sys.getenv("DATA_ARCHIVE") != "") {
+        Sys.getenv("DATA_ARCHIVE")
+    } else {
+        file.path(Sys.getenv("HOME"), "Data", "DBMS")
+    }
+    file.path(base, paste0(database, "_", table, ".parquet"))
+}
+
+#' Write data frame to Parquet file
+#'
+#' @description Writes, replaces or appends a data frame to a Parquet file.
+#' File path: `$DATA_ARCHIVE/<database>_<table>.parquet`
+#'
+#' @param df A data frame of values.
+#' @param database Database name.
+#' @param table Table name.
+#' @param replace logical. If TRUE, overwrite existing file. Default FALSE.
+#' @param append logical. If TRUE, read existing file, rbind and rewrite. Default FALSE.
+#' @return TRUE invisibly on success, NA if file exists and neither replace nor append.
+#' @importFrom arrow read_parquet write_parquet
+#' @export
+df2parquet <- function(df, database, table, replace = FALSE, append = FALSE) {
+    path <- parquet_path(database, table)
+
+    if (!dir.exists(dirname(path))) {
+        tryCatch(
+            dir.create(dirname(path), recursive = TRUE),
+            error = function(cond) { message(cond); return(FALSE) },
+            warning = function(cond) { message(cond); return(FALSE) }
+        )
+    }
+
+    file_exists <- file.exists(path)
+
+    if (file_exists) {
+        if (!replace && !append) return(NA)
+        if (append) {
+            existing <- arrow::read_parquet(path)
+            df <- rbind(existing, df)
+        }
+        # replace: just overwrite; append: write merged data
+    }
+
+    arrow::write_parquet(df, path)
+    message("Data frame has been written successfully to ", path)
     invisible(TRUE)
 }
 

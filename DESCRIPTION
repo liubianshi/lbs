@@ -24,6 +24,8 @@ Imports:
     purrr,
     DBI,
     RSQLite,
+    arrow,
+    duckdb,
     stringr (>= 1.0),
 Suggests:
     testthat,

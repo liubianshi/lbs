@@ -13,6 +13,7 @@ DATABASE_PATH <- file.path(
 #' @param and Logical value. Way of combine conditions
 #' @param limit A interger. SQL Limit.
 #' @return A data.frame
+#' @importFrom duckdb duckdb dbConnect dbDisconnect
 #' @export
 getDataSQLite <- function(
   database,
@@ -25,13 +26,18 @@ getDataSQLite <- function(
   noinfo = TRUE
 ) {
   if (is.null(path)) {
-    path <- file.path(Sys.getenv("DATA_ARCHIVE"), paste0(database, ".sqlite"))
+    base <- if (Sys.getenv("DATA_ARCHIVE") != "") {
+      Sys.getenv("DATA_ARCHIVE")
+    } else {
+      file.path(Sys.getenv("HOME"), "Data", "DBMS")
+    }
+    path <- file.path(base, paste0(database, "_", table, ".parquet"))
   }
-  con <- DBI::dbConnect(RSQLite::SQLite(), path)
-  on.exit(DBI::dbDisconnect(con))
+  stopifnot(file.exists(path))
 
-  tableList <- DBI::dbListTables(con)
-  stopifnot(isTRUE(table %in% tableList))
+  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  DBI::dbExecute(con, sprintf("CREATE VIEW %s AS SELECT * FROM '%s'", table, path))
 
   if (is.null(var)) {
     var <- "*"
