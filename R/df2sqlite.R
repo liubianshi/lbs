@@ -44,36 +44,20 @@ check_attr <- function(x, quietly = FALSE) {
   invisible(attr_exist)
 }
 
-#' Prepare data.frame information for SRDM
+#' Archive a data frame to Parquet and update the metadata index
 #'
-#' @description *Personal use!*. Check whether the data frame meets the
-#' requirements of SRDM, and output the basic information of the data to
-#' standard output
-#' @param df data.frame for archive
-#' @param database valid database name
-#' @param table valid table name
-#' @param replace logical value. Default is FALSE
-#' @param append logical value. Default is FALSE
-#' @param write_repo logical value. Weather write data infomation to SRMD repo. Default is TURE.
-#' @examples
-#' df$ID <- seq_len(nrow(df))
-#' attr(df, "keys") = "ID"
-#' for (i in seq_along(df))
-#'     attr(df[[i]], "label") = paste("label:", names(df)[i])
-#' fil <- tempfile("srdm")
-#' df_srdm(df, "test", "mtcars", file = fil, replace = TRUE)
-#' if (interactive()) file.show(fil)
-#' database <- file.path(
-#'     ifelse(Sys.getenv("DATA_ARCHIVE") != "",
-#'         Sys.getenv("DATA_ARCHIVE"), "~/Data/DBMS"
-#'     ), "test.sqlite"
-#' )
-#' con <- DBI::dbConnect(RSQLite::SQLite(), database)
-#' DBI::dbListTables(con)
-#' DBI::dbGetQuery(con, "SELECT * FROM mtcars WHERE ID <= 10")
-#' DBI::dbDisconnect(con)
+#' @description *Personal use!* Write a labelled data frame to a Parquet file
+#'   under `$DATA_ARCHIVE` and record its metadata in `_meta_tables.parquet`
+#'   and `_meta_variables.parquet`.
+#' @param df A data.frame with `keys` attribute set and all columns labelled.
+#' @param database Database name (alphanumeric/underscore only).
+#' @param table Table name (alphanumeric/underscore only).
+#' @param replace Logical. Overwrite existing file/metadata. Default FALSE.
+#' @param append Logical. Append rows to existing file. Default FALSE.
+#' @param write_repo Logical. Update metadata index. Default TRUE.
+#' @return TRUE invisibly.
 #' @export
-df_srdm <- function(
+df_archive <- function(
   df,
   database,
   table,
@@ -145,8 +129,25 @@ df_srdm <- function(
   invisible(TRUE)
 }
 
-repo_parquet_path <- function(tbl) {
-  file.path(Sys.getenv("SRDM_DATA_REPO_PATH"), paste0("srdm_", tbl, ".parquet"))
+#' @rdname df_archive
+#' @export
+df_srdm <- function(...) {
+  .Deprecated("df_archive")
+  df_archive(...)
+}
+
+meta_parquet_path <- function(tbl) {
+  base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
+    Sys.getenv("DATA_ARCHIVE")
+  } else {
+    file.path(Sys.getenv("HOME"), "Data", "DBMS")
+  }
+  filename <- switch(tbl,
+    tables    = "_meta_tables.parquet",
+    variables = "_meta_variables.parquet",
+    stop("unknown meta table: ", tbl)
+  )
+  file.path(base, filename)
 }
 
 upsert_parquet_row <- function(path, new_row, replace = FALSE) {
@@ -188,12 +189,12 @@ write_repo_direct <- function(table_attr, vari_attr, path, replace = FALSE) {
     stringsAsFactors = FALSE
   )
   upsert_parquet_row(
-    repo_parquet_path("data_table"),
+    meta_parquet_path("tables"),
     tbl_row,
     replace = replace
   )
 
-  rec_path <- repo_parquet_path("data_record")
+  rec_path <- meta_parquet_path("variables")
   for (va in vari_attr) {
     rec_row <- data.frame(
       name = va["name"],

@@ -1,32 +1,45 @@
-repo_parquet_path <- function(tbl) {
-    file.path(Sys.getenv("SRDM_DATA_REPO_PATH"),
-              paste0("srdm_", tbl, ".parquet"))
+meta_parquet_path <- function(tbl) {
+  base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
+    Sys.getenv("DATA_ARCHIVE")
+  } else {
+    file.path(Sys.getenv("HOME"), "Data", "DBMS")
+  }
+  filename <- switch(tbl,
+    tables    = "_meta_tables.parquet",
+    variables = "_meta_variables.parquet",
+    stop("unknown meta table: ", tbl)
+  )
+  file.path(base, filename)
 }
 
-open_repo_con <- function() {
-    con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
-    for (tbl in c("data_table", "data_record")) {
-        p <- repo_parquet_path(tbl)
-        if (file.exists(p))
-            DBI::dbExecute(con,
-                sprintf("CREATE VIEW %s AS SELECT * FROM '%s'", tbl, p))
-    }
-    con
+open_meta_con <- function() {
+  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+  for (tbl in c("tables", "variables")) {
+    p <- meta_parquet_path(tbl)
+    if (file.exists(p))
+      DBI::dbExecute(con,
+        sprintf("CREATE VIEW meta_%s AS SELECT * FROM '%s'", tbl, p))
+  }
+  con
 }
 
-#'  Get data from SQLite Database
+#' Read a data table from the archive
 #'
-#' @description 从 SQLite 数据库中获取数据表
-#' @param database SQLite database path
-#' @param table Table name
-#' @param var A character vector consist of column names.
-#' @param condition A character vector consist of SQL conditions
-#' @param and Logical value. Way of combine conditions
-#' @param limit A interger. SQL Limit.
-#' @return A data.frame
+#' @description *Personal use!* Read a Parquet data file from `$DATA_ARCHIVE`
+#'   and attach variable labels from the metadata index.
+#' @param database Database name.
+#' @param table Table name.
+#' @param var Character vector of column names. NULL returns all columns.
+#' @param condition Character vector of SQL WHERE conditions.
+#' @param path Override the default Parquet file path.
+#' @param and Logical. How to combine multiple conditions (TRUE = AND, FALSE = OR).
+#' @param limit Integer. SQL LIMIT.
+#' @param noinfo If TRUE (default), return only the data. If FALSE, return a
+#'   list with `data` and `info`.
+#' @return A data.table.
 #' @importFrom duckdb duckdb dbConnect dbDisconnect
 #' @export
-getDataSQLite <- function(
+read_archive <- function(
   database,
   table,
   var = NULL,
@@ -37,7 +50,7 @@ getDataSQLite <- function(
   noinfo = TRUE
 ) {
   if (is.null(path)) {
-    base <- if (Sys.getenv("DATA_ARCHIVE") != "") {
+    base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
       Sys.getenv("DATA_ARCHIVE")
     } else {
       file.path(Sys.getenv("HOME"), "Data", "DBMS")
@@ -64,7 +77,7 @@ getDataSQLite <- function(
     if (isTRUE(and)) {
       condition <- paste(condition, collapse = " AND \n       ")
     } else if (isFALSE(and)) {
-      condition <- paste(condtion, collapse = " OR \n       ")
+      condition <- paste(condition, collapse = " OR \n       ")
     } else {
       stop("param 'and' only accept TRUE or FALSE")
     }
@@ -78,53 +91,56 @@ getDataSQLite <- function(
   message(
     "===============SQL===============\n",
     sel,
-    '\n================================='
+    "\n================================="
   )
 
   data <- DBI::dbGetQuery(con, sel) %>% setDT()
   info <- getdatainfo(database, table, var)
   stlabel(data, names(data), info[, label])
 
-  if (isTRUE(noinfo)) {
-    data
-  } else {
-    list(data = data, info = info)
-  }
+  if (isTRUE(noinfo)) data else list(data = data, info = info)
 }
 
-#' Get infomation form data.repo
+#' @rdname read_archive
+#' @export
+getDataSQLite <- function(...) {
+  .Deprecated("read_archive")
+  read_archive(...)
+}
+
+#' Get variable metadata from the archive index
 #'
-#' @description get data information from srdm repo
-#' @inheritParams getDataSQLite
-#' @return return a data.frame contain data info
+#' @description *Personal use!* Query variable or table metadata stored in
+#'   `_meta_tables.parquet` / `_meta_variables.parquet`.
+#' @inheritParams read_archive
+#' @return A data.table of metadata rows.
 #' @export
 getdatainfo <- function(database, table, var = NULL) {
-  con <- open_repo_con()
+  con <- open_meta_con()
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   if (is.null(var)) {
     sel <- gettextf(
-      "SELECT * FROM data_table WHERE name IN (\n\t%s)",
+      "SELECT * FROM meta_tables WHERE name IN (\n\t%s)",
       paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t")
     )
   } else if (isTRUE(var %in% c("all", "*"))) {
-    if (!(length(database) == 1 && length(table) == 1)) {
+    if (!(length(database) == 1 && length(table) == 1))
       stop("Query all variables only allowed in one table")
-    }
     sel <- gettextf(
-      "SELECT * FROM data_record WHERE name LIKE %s",
+      "SELECT * FROM meta_variables WHERE name LIKE %s",
       paste0("'", database, ":", table, ":%'")
     )
   } else {
     sel <- gettextf(
-      "SELECT * FROM data_record WHERE name IN (\n\t%s)",
+      "SELECT * FROM meta_variables WHERE name IN (\n\t%s)",
       paste(
         paste0("'", database, ":", table, ":", var, "'"),
         collapse = ",\n\t"
       )
     )
   }
-  #message("SQL Query Sentence:\n", sel)
+
   out <- DBI::dbGetQuery(con, sel) %>% setDT()
   if (length(var) >= 2L) {
     namelist <- strsplit(out$name, ":") %>% purrr::map_chr(`[[`, 3)
@@ -133,45 +149,60 @@ getdatainfo <- function(database, table, var = NULL) {
   out
 }
 
-#' get all variables' basic infomation in srmd repo
+#' List all archived variables
 #'
-#' @return All variable name and label stored in srdm repo
+#' @description *Personal use!* Return all variable names and labels in the
+#'   metadata index.
+#' @return A data.table with columns database, table, variable, label.
 #' @export
-getallvar <- function() {
-  con <- open_repo_con()
+list_variables <- function() {
+  con <- open_meta_con()
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
-  vars <- DBI::dbGetQuery(con, "SELECT name,label from data_record")
+  vars <- DBI::dbGetQuery(con, "SELECT name, label FROM meta_variables")
   varnames <- vars$name %>% stringr::str_split(":")
-  varLabels <- vars$label
-  databaseList <- purrr::map_chr(varnames, 1)
-  tableList <- purrr::map_chr(varnames, 2)
-  varList <- purrr::map_chr(varnames, 3)
   invisible(data.table(
-    database = databaseList,
-    table = tableList,
-    variable = varList,
-    label = varLabels
+    database = purrr::map_chr(varnames, 1),
+    table    = purrr::map_chr(varnames, 2),
+    variable = purrr::map_chr(varnames, 3),
+    label    = vars$label
   ))
 }
 
-#' get all tables' basic information from srmd_repo
-#'
-#' @return All tables name and label stored in srdm repo
+#' @rdname list_variables
 #' @export
-getalltable <- function() {
-  con <- open_repo_con()
+getallvar <- function() {
+  .Deprecated("list_variables")
+  list_variables()
+}
+
+#' List all archived tables
+#'
+#' @description *Personal use!* Return all table names and descriptions in the
+#'   metadata index.
+#' @return A data.table with columns database, table, keys, description.
+#' @export
+list_tables <- function() {
+  con <- open_meta_con()
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
-  tables <- DBI::dbGetQuery(con, "SELECT name,keys,description from data_table")
+  tables <- DBI::dbGetQuery(con,
+    "SELECT name, keys, description FROM meta_tables")
   tablenames <- tables$name %>% stringr::str_split(":")
   databaseList <- purrr::map_chr(tablenames, 1)
-  tableList <- purrr::map_chr(tablenames, 2)
+  tableList    <- purrr::map_chr(tablenames, 2)
   setDT(tables)[, `:=`(
     database = ..databaseList,
-    table = ..tableList,
-    name = NULL
+    table    = ..tableList,
+    name     = NULL
   )]
   data.table::setcolorder(tables, c("database", "table"))
   tables
+}
+
+#' @rdname list_tables
+#' @export
+getalltable <- function() {
+  .Deprecated("list_tables")
+  list_tables()
 }

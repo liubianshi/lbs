@@ -12,27 +12,28 @@ make_test_df <- function(n = 5) {
     df
 }
 
-# ── repo_parquet_path ──────────────────────────────────────────────────────────
+# ── meta_parquet_path ─────────────────────────────────────────────────────────
 
-test_that("repo_parquet_path constructs correct paths", {
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(SRDM_DATA_REPO_PATH = repo_dir)
+test_that("meta_parquet_path constructs correct paths", {
+    data_dir <- withr::local_tempdir()
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     expect_equal(
-        lbs:::repo_parquet_path("data_table"),
-        file.path(repo_dir, "srdm_data_table.parquet")
+        lbs:::meta_parquet_path("tables"),
+        file.path(data_dir, "_meta_tables.parquet")
     )
     expect_equal(
-        lbs:::repo_parquet_path("data_record"),
-        file.path(repo_dir, "srdm_data_record.parquet")
+        lbs:::meta_parquet_path("variables"),
+        file.path(data_dir, "_meta_variables.parquet")
     )
+    expect_error(lbs:::meta_parquet_path("unknown"))
 })
 
 # ── upsert_parquet_row ────────────────────────────────────────────────────────
 
 test_that("upsert_parquet_row creates new file on first write", {
-    repo_dir <- withr::local_tempdir()
-    path <- file.path(repo_dir, "test.parquet")
+    tmp  <- withr::local_tempdir()
+    path <- file.path(tmp, "test.parquet")
     row  <- data.frame(name = "a", val = 1L, stringsAsFactors = FALSE)
 
     result <- lbs:::upsert_parquet_row(path, row)
@@ -44,8 +45,8 @@ test_that("upsert_parquet_row creates new file on first write", {
 })
 
 test_that("upsert_parquet_row appends row with new key", {
-    repo_dir <- withr::local_tempdir()
-    path <- file.path(repo_dir, "test.parquet")
+    tmp  <- withr::local_tempdir()
+    path <- file.path(tmp, "test.parquet")
     row1 <- data.frame(name = "a", val = 1L, stringsAsFactors = FALSE)
     row2 <- data.frame(name = "b", val = 2L, stringsAsFactors = FALSE)
 
@@ -57,9 +58,9 @@ test_that("upsert_parquet_row appends row with new key", {
 })
 
 test_that("upsert_parquet_row returns FALSE and keeps old value when replace=FALSE", {
-    repo_dir <- withr::local_tempdir()
-    path <- file.path(repo_dir, "test.parquet")
-    row1 <- data.frame(name = "a", val = 1L, stringsAsFactors = FALSE)
+    tmp  <- withr::local_tempdir()
+    path <- file.path(tmp, "test.parquet")
+    row1 <- data.frame(name = "a", val = 1L,  stringsAsFactors = FALSE)
     row2 <- data.frame(name = "a", val = 99L, stringsAsFactors = FALSE)
 
     lbs:::upsert_parquet_row(path, row1)
@@ -71,9 +72,9 @@ test_that("upsert_parquet_row returns FALSE and keeps old value when replace=FAL
 })
 
 test_that("upsert_parquet_row replaces existing row when replace=TRUE", {
-    repo_dir <- withr::local_tempdir()
-    path <- file.path(repo_dir, "test.parquet")
-    row1 <- data.frame(name = "a", val = 1L, stringsAsFactors = FALSE)
+    tmp  <- withr::local_tempdir()
+    path <- file.path(tmp, "test.parquet")
+    row1 <- data.frame(name = "a", val = 1L,  stringsAsFactors = FALSE)
     row2 <- data.frame(name = "a", val = 99L, stringsAsFactors = FALSE)
 
     lbs:::upsert_parquet_row(path, row1)
@@ -85,9 +86,9 @@ test_that("upsert_parquet_row replaces existing row when replace=TRUE", {
 
 # ── write_repo_direct ─────────────────────────────────────────────────────────
 
-test_that("write_repo_direct creates both parquet metadata files with correct columns", {
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(SRDM_DATA_REPO_PATH = repo_dir)
+test_that("write_repo_direct creates both metadata files with correct columns", {
+    data_dir <- withr::local_tempdir()
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
     table_attr <- check_attr(df, quietly = TRUE)
@@ -103,122 +104,130 @@ test_that("write_repo_direct creates both parquet metadata files with correct co
 
     lbs:::write_repo_direct(table_attr, vari_attr, path = "/tmp/fake.parquet")
 
-    tbl_path <- lbs:::repo_parquet_path("data_table")
-    rec_path <- lbs:::repo_parquet_path("data_record")
+    tbl_path <- lbs:::meta_parquet_path("tables")
+    var_path <- lbs:::meta_parquet_path("variables")
     expect_true(file.exists(tbl_path))
-    expect_true(file.exists(rec_path))
+    expect_true(file.exists(var_path))
 
     tbl <- arrow::read_parquet(tbl_path)
-    rec <- arrow::read_parquet(rec_path)
+    rec <- arrow::read_parquet(var_path)
 
-    # table row
     expect_equal(nrow(tbl), 1L)
     expect_equal(tbl$name, "test:mtcars")
     expect_equal(tbl$engine, "Parquet")
     expect_true(all(c("name", "keys", "path", "engine", "source") %in% names(tbl)))
 
-    # record rows: one per column
     expect_equal(nrow(rec), ncol(df))
     expect_true(all(c("name", "type", "label", "number", "missNumber", "uniqueNumber") %in% names(rec)))
     expect_true(all(grepl("^test:mtcars:", rec$name)))
 })
 
-# ── df_srdm full pipeline ─────────────────────────────────────────────────────
+# ── df_archive full pipeline ──────────────────────────────────────────────────
 
-test_that("df_srdm writes data parquet and metadata parquet files", {
+test_that("df_archive writes data and metadata parquet files", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
-    expect_invisible(df_srdm(df, "test", "mtcars", replace = TRUE))
+    expect_invisible(df_archive(df, "test", "mtcars", replace = TRUE))
 
-    data_path <- file.path(data_dir, "test_mtcars.parquet")
-    expect_true(file.exists(data_path))
-    expect_true(file.exists(lbs:::repo_parquet_path("data_table")))
-    expect_true(file.exists(lbs:::repo_parquet_path("data_record")))
+    expect_true(file.exists(file.path(data_dir, "test_mtcars.parquet")))
+    expect_true(file.exists(lbs:::meta_parquet_path("tables")))
+    expect_true(file.exists(lbs:::meta_parquet_path("variables")))
 
-    tbl <- arrow::read_parquet(lbs:::repo_parquet_path("data_table"))
+    tbl <- arrow::read_parquet(lbs:::meta_parquet_path("tables"))
     expect_equal(tbl$name, "test:mtcars")
-    rec <- arrow::read_parquet(lbs:::repo_parquet_path("data_record"))
+    rec <- arrow::read_parquet(lbs:::meta_parquet_path("variables"))
     expect_equal(nrow(rec), ncol(df))
 })
 
-test_that("df_srdm append mode does not duplicate metadata rows", {
+test_that("df_archive append mode does not duplicate metadata rows", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df1 <- make_test_df(5)
     df2 <- make_test_df(3)
-    df2$id <- df2$id + 100L  # non-overlapping keys
+    df2$id <- df2$id + 100L
 
-    df_srdm(df1, "test", "mtcars", replace = TRUE)
-    df_srdm(df2, "test", "mtcars", append = TRUE)
+    df_archive(df1, "test", "mtcars", replace = TRUE)
+    df_archive(df2, "test", "mtcars", append = TRUE)
 
-    tbl <- arrow::read_parquet(lbs:::repo_parquet_path("data_table"))
-    expect_equal(nrow(tbl), 1L)  # exactly one table entry
+    tbl <- arrow::read_parquet(lbs:::meta_parquet_path("tables"))
+    expect_equal(nrow(tbl), 1L)
 
-    rec <- arrow::read_parquet(lbs:::repo_parquet_path("data_record"))
-    expect_equal(nrow(rec), ncol(df1))  # no duplicate variable rows
+    rec <- arrow::read_parquet(lbs:::meta_parquet_path("variables"))
+    expect_equal(nrow(rec), ncol(df1))
+})
+
+test_that("df_srdm is deprecated but still works", {
+    data_dir <- withr::local_tempdir()
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
+
+    df <- make_test_df()
+    expect_warning(df_srdm(df, "test", "mtcars", replace = TRUE), "deprecated")
+    expect_true(file.exists(file.path(data_dir, "test_mtcars.parquet")))
 })
 
 # ── getdatainfo / getallvar / getalltable ─────────────────────────────────────
 
 test_that("getdatainfo returns variable info by name", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
-    df_srdm(df, "test", "tbl1", replace = TRUE)
+    df_archive(df, "test", "tbl1", replace = TRUE)
 
     info <- getdatainfo("test", "tbl1", c("id", "val"))
     expect_s3_class(info, "data.table")
     expect_equal(nrow(info), 2L)
-    expect_true("label" %in% names(info))
     expect_equal(info$label, c("Record ID", "Numeric Value"))
 })
 
 test_that("getdatainfo with var=NULL returns table-level info", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
-    df_srdm(df, "test", "tbl2", replace = TRUE)
+    df_archive(df, "test", "tbl2", replace = TRUE)
 
     info <- getdatainfo("test", "tbl2")
     expect_s3_class(info, "data.table")
-    expect_true("name" %in% names(info))
     expect_equal(info$name, "test:tbl2")
 })
 
-test_that("getallvar lists all variables from repo", {
+test_that("list_variables lists all variables", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
-    df_srdm(df, "test", "tbl3", replace = TRUE)
+    df_archive(df, "test", "tbl3", replace = TRUE)
 
-    vars <- getallvar()
+    vars <- list_variables()
     expect_s3_class(vars, "data.table")
     expect_true(all(c("database", "table", "variable", "label") %in% names(vars)))
-    tbl3_rows <- vars[vars$database == "test" & vars$table == "tbl3", ]
-    expect_equal(nrow(tbl3_rows), ncol(df))
+    expect_equal(nrow(vars[database == "test" & table == "tbl3"]), ncol(df))
 })
 
-test_that("getalltable lists all tables from repo", {
+test_that("list_tables lists all tables", {
     data_dir <- withr::local_tempdir()
-    repo_dir <- withr::local_tempdir()
-    withr::local_envvar(DATA_ARCHIVE = data_dir, SRDM_DATA_REPO_PATH = repo_dir)
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
 
     df <- make_test_df()
-    df_srdm(df, "test", "tbl4", replace = TRUE)
+    df_archive(df, "test", "tbl4", replace = TRUE)
 
-    tables <- getalltable()
+    tables <- list_tables()
     expect_s3_class(tables, "data.table")
     expect_true(all(c("database", "table") %in% names(tables)))
     expect_true(any(tables$database == "test" & tables$table == "tbl4"))
+})
+
+test_that("getallvar and getalltable are deprecated but still work", {
+    data_dir <- withr::local_tempdir()
+    withr::local_envvar(DATA_ARCHIVE = data_dir)
+
+    df <- make_test_df()
+    df_archive(df, "test", "tbl5", replace = TRUE)
+
+    expect_warning(getallvar(), "deprecated")
+    expect_warning(getalltable(), "deprecated")
 })
