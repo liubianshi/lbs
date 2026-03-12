@@ -1,6 +1,6 @@
 Package: lbs
 Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9024
+Version: 0.0.0.9025
 Authors@R:
     person(given = "Wei",
            family = "Luo",
@@ -23,7 +23,6 @@ Imports:
     magrittr,
     purrr,
     DBI,
-    RSQLite,
     arrow,
     duckdb,
     stringr (>= 1.0),

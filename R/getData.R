@@ -1,7 +1,18 @@
-DATABASE_PATH <- file.path(
-  Sys.getenv("SRDM_DATA_REPO_PATH"),
-  "srdm_dataRepo.sqlite"
-)
+repo_parquet_path <- function(tbl) {
+    file.path(Sys.getenv("SRDM_DATA_REPO_PATH"),
+              paste0("srdm_", tbl, ".parquet"))
+}
+
+open_repo_con <- function() {
+    con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
+    for (tbl in c("data_table", "data_record")) {
+        p <- repo_parquet_path(tbl)
+        if (file.exists(p))
+            DBI::dbExecute(con,
+                sprintf("CREATE VIEW %s AS SELECT * FROM '%s'", tbl, p))
+    }
+    con
+}
 
 #'  Get data from SQLite Database
 #'
@@ -88,8 +99,8 @@ getDataSQLite <- function(
 #' @return return a data.frame contain data info
 #' @export
 getdatainfo <- function(database, table, var = NULL) {
-  con <- DBI::dbConnect(RSQLite::SQLite(), DATABASE_PATH)
-  on.exit(DBI::dbDisconnect(con))
+  con <- open_repo_con()
+  on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   if (is.null(var)) {
     sel <- gettextf(
@@ -127,8 +138,8 @@ getdatainfo <- function(database, table, var = NULL) {
 #' @return All variable name and label stored in srdm repo
 #' @export
 getallvar <- function() {
-  con <- DBI::dbConnect(RSQLite::SQLite(), DATABASE_PATH)
-  on.exit(DBI::dbDisconnect(con))
+  con <- open_repo_con()
+  on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   vars <- DBI::dbGetQuery(con, "SELECT name,label from data_record")
   varnames <- vars$name %>% stringr::str_split(":")
@@ -149,8 +160,8 @@ getallvar <- function() {
 #' @return All tables name and label stored in srdm repo
 #' @export
 getalltable <- function() {
-  con <- DBI::dbConnect(RSQLite::SQLite(), DATABASE_PATH)
-  on.exit(DBI::dbDisconnect(con))
+  con <- open_repo_con()
+  on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   tables <- DBI::dbGetQuery(con, "SELECT name,keys,description from data_table")
   tablenames <- tables$name %>% stringr::str_split(":")
