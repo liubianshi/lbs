@@ -23,7 +23,13 @@ psm(
 
 \item{pscore}{name of a column for propensity score}
 
-\item{args}{a list contain element to be passed to \code{MatchIt::matchid}}
+\item{...}{additional arguments forwarded to \code{match_fun} (e.g. \code{caliper}).}
+
+\item{match_fun}{function performing the actual matching; default
+\code{nearest_match}.}
+
+\item{result_handle_fun}{optional function to post-process the matching
+result before extracting the match table.}
 }
 \description{
 execute propensity match and return match result object with match table

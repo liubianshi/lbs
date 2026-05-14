@@ -7,11 +7,11 @@
 stxtset(df, id, time)
 }
 \arguments{
+\item{df}{a data.table object}
+
 \item{id}{variable name as panel id}
 
 \item{time}{variable name as panel time}
-
-\item{data}{a data.table object}
 }
 \description{
 Mark \code{data.table} as Panel data, and set \code{id} and \code{time}

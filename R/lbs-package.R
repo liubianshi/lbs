@@ -1,15 +1,11 @@
-#' Personal use fucntion
-#'
-#' @name lbs-package
-#' @aliases lbs
-#' @docType package
-NULL
-
 .onLoad <- function(libname, pkgname) {
-    NULL
+  NULL
 }
 
 # Import -----------------------------------------------
+
+#' @import ggplot2
+NULL
 
 #' @importFrom magrittr %>%
 #' @export
@@ -46,6 +42,3 @@ rlang::`!!`
 #' @importFrom rlang !!!
 #' @export
 rlang::`!!!`
-
-# regforuse -------------------------------------------------------------------
-

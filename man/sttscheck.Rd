@@ -7,7 +7,7 @@
 sttscheck(df)
 }
 \arguments{
-\item{dt}{data.frame object}
+\item{df}{data.frame object}
 }
 \description{
 check whether a data.frame is a time-series table

@@ -6,6 +6,11 @@
 \usage{
 pop(x, drop = TRUE)
 }
+\arguments{
+\item{x}{a vector or list in the caller's frame; modified in place.}
+
+\item{drop}{logical; if \code{TRUE}, unwrap a single-element list result.}
+}
 \description{
 perl-style pop
 }

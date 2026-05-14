@@ -9,15 +9,14 @@ fmt_lang(x, lang = "en_US")
 \arguments{
 \item{x}{a character vector}
 
-\item{lang}{a string. The default value is "zh_CN"}
+\item{lang}{a string. The default value is "zh_CN" (Chinese) or
+"en_US" (English, default). "zh_CN" keeps CJK ideographs.}
 }
 \description{
-将小写字母转化为大写字母，全角符号转化为半角符号，并根据语言剔除无意义字符
+Convert lowercase to uppercase, full-width characters to
+half-width, and drop meaningless characters according to language.
 }
 \examples{
-x <- c('Ｂ  ', 'Ｃ０１２,,,３', 'cabc=dd')
+x <- c("\uff22  ", "\uff23\uff10\uff11\uff12,,,\uff13", "cabc=dd")
 fmt_lang(x)
-y <- c(x, "中文３４５６Ｚａｂ")
-fmt_lang(y)
-fmt_lang(y, lang = "zh_CN")
 }

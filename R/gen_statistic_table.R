@@ -6,7 +6,9 @@
 #' @param se standard error data.frame
 #' @param t t statistic  data.frame
 #' @param star a list contain cut and symbol
-#' @param foramt a list contain format information
+#' @param format a list contain format information
+#' @param outfmt output format passed to `adjstar()`; one of `"md"`,
+#'   `"flextable"`, `"docx"`, `"word"`, `"html"`, `"pdf"`, `"kable"`, `"text"`
 #'
 #' @export
 gen_statistic_table <- function(
@@ -22,8 +24,16 @@ gen_statistic_table <- function(
 
     out$stat <- coef2str(stat, parse_c(format["stat"]))
     if (!is.null(star)) {
-        star_table <- purrr::map_dfc(p, genstar, adjstar(star, outfmt))
-        out$stat <- purrr::map2_dfc(out$stat, star_table, paste0)
+        star_table <- as.data.frame(
+            purrr::map(p, genstar, adjstar(star, outfmt)),
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+        )
+        out$stat <- as.data.frame(
+            purrr::map2(out$stat, star_table, paste0),
+            check.names = FALSE,
+            stringsAsFactors = FALSE
+        )
     }
     out$stat$`__1` <- 1
     out$stat$`__2` <- seq_len(nrow(out$stat))

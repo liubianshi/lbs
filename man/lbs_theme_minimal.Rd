@@ -2,7 +2,7 @@
 % Please edit documentation in R/lbs_theme_minimal.R
 \name{lbs_theme_minimal}
 \alias{lbs_theme_minimal}
-\title{: ggplot theme, based on \code{cowplot} 的 \code{theme_minimal_grid}}
+\title{Custom theme for ggplot: minimal}
 \usage{
 lbs_theme_minimal(
   legend.position = "top",
@@ -10,6 +10,15 @@ lbs_theme_minimal(
   fontfamily = getOption("font.serif")
 )
 }
+\arguments{
+\item{legend.position}{passed to \code{ggplot2::theme()}. Default \code{"top"}.}
+
+\item{dpi}{integer; output DPI used to scale font sizes. Default \code{600L}.}
+
+\item{fontfamily}{font family for all text. Defaults to
+\code{getOption("font.serif")} or \code{"serif"} if unset.}
+}
 \description{
-Custom theme for ggplot: minimal
+A ggplot theme based on \code{cowplot::theme_minimal_hgrid()} with
+font sizes scaled by \code{dpi}.
 }

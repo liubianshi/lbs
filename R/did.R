@@ -1,4 +1,17 @@
 #' execute pre-trend test for did analysis
+#'
+#' @param data a data.frame / data.table with panel observations.
+#' @param id column name identifying the cross-sectional unit.
+#' @param time column name identifying the time period.
+#' @param output column name of the outcome variable.
+#' @param treat_status optional column name of a binary treatment indicator.
+#'   Either `treat_status` or `group` must be supplied.
+#' @param group optional column name storing the first-treatment cohort.
+#' @param never_treat value in `group` representing never-treated units; rows
+#'   with this value are recoded to `NA`.
+#' @param covs character vector of additional covariate column names.
+#' @param drop_exposure_list integer vector of relative-time dummies to drop
+#'   (reference category). Default `-1`.
 #' @export
 event_study_result <- function(data, id, time, output,
                                treat_status = NULL,
@@ -53,13 +66,15 @@ generate_exposure_dummy_list <- function(time, treat_time,
     exposure_list        <- setdiff((-T_len):(T_len-1), drop_exposure_list)
     names(exposure_list) <- naming_exposure_list(exposure_list, name_prefix) 
 
-    purrr::map_dfc(
+    dummies <- purrr::map(
         exposure_list,
         ~ {
             exposure_dummy <- ifelse(is.na(treat_time), FALSE, time - treat_time == .x)
-            if (all(!exposure_dummy)) NULL else exposure_dummy 
+            if (all(!exposure_dummy)) NULL else exposure_dummy
         }
     )
+    dummies <- purrr::compact(dummies)
+    as.data.frame(dummies, check.names = FALSE, stringsAsFactors = FALSE)
 }
 
 
@@ -130,10 +145,14 @@ gen_example_data_for_did <- function(time_max       = 60,
 }
 
 #' draw event study ploy with event study coefficients
+#'
+#' @param coef_result a data.frame with columns `exposure`, `coef`, `se`
+#'   (typically the output of `event_study_result()`).
+#' @param xlabel x-axis label.
+#' @param ylabel y-axis label.
 #' @export
 event_study_plot <- function(coef_result, xlabel = "Exposure",
                                    ylabel = "Coefficient Estimate") {
-    library(ggplot2)
     ggplot(data = coef_result, aes(y = coef, x = exposure)) +
         geom_hline(yintercept = 0, alpha = 0.4, linewidth = 1.2) +
         geom_line(linetype = "dashed") +

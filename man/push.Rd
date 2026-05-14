@@ -6,6 +6,11 @@
 \usage{
 push(x, ...)
 }
+\arguments{
+\item{x}{a vector or list in the caller's frame; modified in place.}
+
+\item{...}{values (optionally named) to append.}
+}
 \description{
 perl-style push
 }

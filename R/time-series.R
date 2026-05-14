@@ -1,6 +1,6 @@
 #' check whether a data.frame is a time-series table
 #'
-#' @param dt data.frame object
+#' @param df data.frame object
 #' @export
 sttscheck <- function(df) {
     ts <- attr(df, "ts")
@@ -23,7 +23,7 @@ sttscheck <- function(df) {
 #' set data.frame as time-series data
 #'
 #' @description Mark `data.table` as Panel data, and set `id` and `time`
-#' @param data a data.table object
+#' @param df a data.table object
 #' @param time variable name as time
 #' @export
 sttsset <- function(df, time) {

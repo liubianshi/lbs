@@ -3,6 +3,8 @@
 #' @param x a numeric vector
 #' @param breaks a numeric vector of two or more unique cut points
 #' @param labels labels for the levels of the resulting category
+#' @param include.lowest logical; if `TRUE`, include the minimum value in the
+#'   first interval. Defaults to `TRUE`.
 #' @return A `factor` is returned
 #' @examples
 #' ascat(1:10, 5) # eqaul cut(1:10, c(1, 5, 10), include.lowest = TRUE)

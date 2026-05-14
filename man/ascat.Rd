@@ -12,6 +12,9 @@ ascat(x, breaks, labels = NULL, include.lowest = TRUE)
 \item{breaks}{a numeric vector of two or more unique cut points}
 
 \item{labels}{labels for the levels of the resulting category}
+
+\item{include.lowest}{logical; if \code{TRUE}, include the minimum value in the
+first interval. Defaults to \code{TRUE}.}
 }
 \value{
 A \code{factor} is returned

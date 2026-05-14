@@ -34,11 +34,7 @@ check_attr <- function(x, quietly = FALSE) {
     t <- if (!is.null(attr(x, a))) (attr_exist[a] <- attr(x, a)) else ""
 
     if (!quietly) {
-      if ("crayon" %in% rownames(installed.packages())) {
-        cat(gettextf("  %-15s %-s", a, crayon::underline(t)), "\n")
-      } else {
-        cat(gettextf("  %-15s %-s", a, t), "\n")
-      }
+      cat(gettextf("  %-15s %-s", a, t), "\n")
     }
   }
   invisible(attr_exist)
@@ -130,24 +126,11 @@ df_archive <- function(
 }
 
 #' @rdname df_archive
+#' @param ... arguments forwarded to `df_archive()`.
 #' @export
 df_srdm <- function(...) {
   .Deprecated("df_archive")
   df_archive(...)
-}
-
-meta_parquet_path <- function(tbl) {
-  base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
-    Sys.getenv("DATA_ARCHIVE")
-  } else {
-    file.path(Sys.getenv("HOME"), "Data", "DBMS")
-  }
-  filename <- switch(tbl,
-    tables    = "_meta_tables.parquet",
-    variables = "_meta_variables.parquet",
-    stop("unknown meta table: ", tbl)
-  )
-  file.path(base, filename)
 }
 
 upsert_parquet_row <- function(path, new_row, replace = FALSE) {
@@ -217,126 +200,8 @@ write_repo_direct <- function(table_attr, vari_attr, path, replace = FALSE) {
   invisible(TRUE)
 }
 
-#' Write data frame to database
-#'
-#' @description Writes, replace of append a data frame to a database table. At
-#' the same time, setting the primary keys of the table.
-#'
-#' @param df A data frame of values (or coercible to data.frame).
-#' @param database Database name, which will be converted to a database. If
-#' environment variable `DATA_ARCHIVE` has been set, then the `database` will
-#' be transformed to `$DATA_ARCHIVE/<database>.sqlite`, otherwise, the
-#' `database` will be transformed to `$HOME/Data/DBMS/<database>.sqlite.`
-#' @param table Table name in the database
-#' @param keys character vector, primary keys of data.frame df
-#' @param reaplace logical value, whether replace the `table` when it already
-#' exists. default: `FALSE`
-#' @param append logical value, whether append `df` to the table when it
-#' already exists. default: `FALSE`
-#' @examples
-#' \dontrun{
-#' df <- mtcars
-#' df$ID <- seq_along(nrows(df))
-#' df2sqlite(df, database = "test", table = "mtcars", keys = "ID")
-#'
-#' df$ID = df$ID + 100
-#' try(df2sqlite(df, "test", "mtcars", "ID", append = TRUE))
-#' df2sqlite(df, "test", "mtcars", "ID", append = TRUE)
-#'
-#' df$ID = df$ID + 100
-#' df2sqlite(df, "test", "mtcars", "ID", replace = TRUE)
-#'}
-#' @export
-df2sqlite <- function(
-  df,
-  database,
-  table,
-  keys,
-  replace = FALSE,
-  append = FALSE
-) {
-  # 生成数据库文件
-  database <- if (Sys.getenv("DATA_ARCHIVE") != "") {
-    file.path(Sys.getenv("DATA_ARCHIVE"), database)
-  } else {
-    file.path(Sys.getenv("HOME"), "Data", "DBMS", database)
-  }
-
-  # 在文件夹不存在的情况下创建新的文件夹
-  if (!dir.exists(dirname(database))) {
-    tryCatch(
-      dir.create(dirname(database), recursive = TRUE),
-      error = function(cond) {
-        message(cond)
-        return(FALSE)
-      },
-      warning = function(cond) {
-        message(cond)
-        return(FALSE)
-      }
-    )
-  }
-
-  stopifnot(length(database) == 1 && length(table) == 1)
-  database <- paste0(database, ".sqlite")
-  sth_create <- gettextf(
-    "CREATE TABLE %s (%s, PRIMARY KEY(%s))",
-    table,
-    paste(dfname2sql(df), collapse = ", "),
-    paste(keys, collapse = ", ")
-  )
-  sth_back <- gettextf("ALTER TABLE %s RENAME TO %s_bck", table, table)
-  sth_drop_bck <- gettextf("DROP TABLE %s_bck", table)
-  sth_drop_new <- gettextf("DROP TABLE %s", table)
-  sth_restore <- gettextf("ALTER TABLE %s_bck RENAME TO %s", table, table)
-
-  con <- DBI::dbConnect(RSQLite::SQLite(), database)
-  on.exit(DBI::dbDisconnect(con), add = TRUE)
-
-  table_exists <- toupper(table) %in% toupper(DBI::dbListTables(con))
-  if (table_exists) {
-    if (!replace && !append) {
-      return(NA)
-    }
-    if (replace) {
-      DBI::dbExecute(con, sth_back)
-      DBI::dbExecute(con, sth_create)
-    }
-  } else {
-    DBI::dbExecute(con, sth_create)
-  }
-
-  tryCatch(
-    DBI::dbAppendTable(con, table, df),
-    error = function(cond) {
-      if (table_exists && replace) {
-        DBI::dbExecute(con, sth_drop_new)
-        DBI::dbExecute(con, sth_restore)
-      }
-      if (!table_exists) {
-        DBI::dbExecute(con, sth_drop_new)
-      }
-      message("Data frame failed to written to ", database)
-      message("Here's the original error message:")
-      stop(cond, "\n")
-    }
-  )
-
-  if (table_exists && replace) {
-    DBI::dbExecute(con, sth_drop_bck)
-  }
-  message("Data frame has been written successfully")
-  invisible(TRUE)
-}
-
-# Helper: resolve parquet file path for a given database+table
 parquet_path <- function(database, table) {
-  base <- if (Sys.getenv("DATA_ARCHIVE") != "") {
-    Sys.getenv("DATA_ARCHIVE")
-  } else {
-    file.path(Sys.getenv("HOME"), "Data", "DBMS")
-  }
-  file.path(base, paste0(database, "_", table, ".parquet"))
+  file.path(archive_base_dir(), paste0(database, "_", table, ".parquet"))
 }
 
 #' Write data frame to Parquet file
@@ -354,20 +219,7 @@ parquet_path <- function(database, table) {
 #' @export
 df2parquet <- function(df, database, table, replace = FALSE, append = FALSE) {
   path <- parquet_path(database, table)
-
-  if (!dir.exists(dirname(path))) {
-    tryCatch(
-      dir.create(dirname(path), recursive = TRUE),
-      error = function(cond) {
-        message(cond)
-        return(FALSE)
-      },
-      warning = function(cond) {
-        message(cond)
-        return(FALSE)
-      }
-    )
-  }
+  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
 
   file_exists <- file.exists(path)
 
@@ -385,21 +237,4 @@ df2parquet <- function(df, database, table, replace = FALSE, append = FALSE) {
   arrow::write_parquet(df, path)
   message("Data frame has been written successfully to ", path)
   invisible(TRUE)
-}
-
-dfname2sql <- function(df) {
-  name2sql <- function(name) {
-    if (is.list(df[[name]])) {
-      paste(name, "BLOB")
-    } else if (is.integer(df[[name]])) {
-      paste(name, "INTEGER")
-    } else if (is.numeric(df[[name]])) {
-      paste(name, "NUMERIC")
-    } else if (is.character(df[[name]])) {
-      paste(name, "TEXT")
-    } else {
-      paste(name, "NONE")
-    }
-  }
-  purrr::map_chr(names(df), name2sql)
 }

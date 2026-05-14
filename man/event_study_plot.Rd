@@ -10,6 +10,14 @@ event_study_plot(
   ylabel = "Coefficient Estimate"
 )
 }
+\arguments{
+\item{coef_result}{a data.frame with columns \code{exposure}, \code{coef}, \code{se}
+(typically the output of \code{event_study_result()}).}
+
+\item{xlabel}{x-axis label.}
+
+\item{ylabel}{y-axis label.}
+}
 \description{
 draw event study ploy with event study coefficients
 }

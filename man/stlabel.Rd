@@ -9,9 +9,11 @@ stlabel(df, var, attr, type = "label")
 \arguments{
 \item{df}{data.table}
 
-\item{variable}{one bare variabel name or character vector of variable names}
+\item{var}{one bare variable name or character vector of variable names}
 
-\item{attributes}{numeric or character vector, length must equal variables}
+\item{attr}{numeric or character vector, length must equal \code{var}}
+
+\item{type}{name of the attribute to set (default \code{"label"})}
 }
 \description{
 Set attributes for variables in data.table

@@ -1,23 +1,22 @@
 Package: lbs
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9026
+Title: Personal R Toolkit for Data Archival and Stata-Style Analysis
+Version: 0.0.0.9040
 Authors@R:
     person(given = "Wei",
            family = "Luo",
            role = c("aut", "cre"),
-           email = "liu.bian.shi@gmail.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
-Description: R functions for pernsonal use
-License: `use_mit_license()`, `use_gpl3_license()` or friends to
-    use_mit_license()
+           email = "liu.bian.shi@gmail.com")
+Description: A personal collection of R helpers covering Parquet-based data
+    archival with metadata indexing, Stata-style data inspection
+    (stdes/stsum/stxtset), panel/time-series helpers, propensity score
+    matching, event-study DID utilities, and ggplot2 theme/plot helpers.
+License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.2
 Depends:
     R (>= 3.1.0),
-    data.table,
-    ggplot2,
+    data.table
 Imports:
     rlang,
     magrittr,
@@ -26,5 +25,12 @@ Imports:
     arrow,
     duckdb,
     stringr (>= 1.0),
+    ggplot2,
+    colorspace,
+    cowplot,
+    fixest
 Suggests:
     testthat,
+    knitr,
+    withr
+Config/roxygen2/version: 8.0.0

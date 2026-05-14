@@ -7,9 +7,9 @@
 sttsset(df, time)
 }
 \arguments{
-\item{time}{variable name as time}
+\item{df}{a data.table object}
 
-\item{data}{a data.table object}
+\item{time}{variable name as time}
 }
 \description{
 Mark \code{data.table} as Panel data, and set \code{id} and \code{time}

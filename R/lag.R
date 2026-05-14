@@ -2,20 +2,21 @@
 #'
 #' @description Calculate the lag/forward terms of variables and vectors
 #'
-#' @param x a vector.
-#' @param df a a data.table or data.frame object.
+#' @param x a vector, or (in the data.frame method) a data.table / data.frame.
 #'        If hoping update by reference, data.table is required.
 #' @param varlist Variable names needed to calculate lagged terms.
 #'        a bare name and a character vector are acceptable.
 #' @param by Names of variables used to grouping data.
-#' @param time a interger vector object for x, and a name or string for df. 
-#'        For x, time length must equal to x.
+#' @param time an integer vector (vector method) or a variable name / character
+#'        string (data.frame method). In the vector case, `length(time)` must
+#'        equal `length(x)`.
 #' @param n an integer.
 #' @param mode `NULL` or character string nameing an atomic mode or "list".
-#'        Default is `NULL`, update data.frame by reference using `:=` from 
+#'        Default is `NULL`, update data.frame by reference using `:=` from
 #'        `data.table`. `list`, `data.table`, `data.frame` and `vector` is
 #'        acceptable. If `mode = "vector"`, the length of `varlist` needed
 #'        to be one.
+#' @param ... additional arguments forwarded to the method.
 #'
 #' @examples
 #' time = rep(2001:2006)
@@ -45,11 +46,7 @@ stlag <- function(x, ...) {
 #' @describeIn stlag Calculate lag term of vector
 #'
 #' @export
-stlag.default <- function(x, time, n = 1L) {
-    if (is.list(x)) {
-        df <- as.data.table(x)
-        stlag.data.frame(x, time, n)
-    }
+stlag.default <- function(x, time, n = 1L, ...) {
     if (length(n) != 1)
         stop("n's length must equal to 1")
     if (! is.integer(n) || n == 0)
@@ -63,35 +60,35 @@ stlag.default <- function(x, time, n = 1L) {
 }
 
 #' @describeIn stlag Calculate lag terms of data.frame/data.table variables
-#' 
+#'
 #' @export
-stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
-                             n = 1L, mode = NULL) {
-    names_df <- names(df)
+stlag.data.frame <- function(x, varlist = NULL, time = NULL, by = NULL,
+                             n = 1L, mode = NULL, ...) {
+    names_df <- names(x)
 
     # 将 data.frame 转化为 data.table
-    if (isFALSE(is.data.table(df))) {
+    if (isFALSE(is.data.table(x))) {
         if (is.null(mode)) stop("Update by reference needing a data.table")
-        setDT(df)
+        setDT(x)
     }
 
     # 变量名裸字转换为变量名向量
     time     <- rlang::enquo(time)
-    time     <- get_df_names(df, !!time)
+    time     <- get_df_names(x, !!time)
     varlist  <- rlang::enquo(varlist)
-    varlist  <- get_df_names(df, !!varlist)
+    varlist  <- get_df_names(x, !!varlist)
     by       <- rlang::enquo(by)
-    by       <- get_df_names(df, !!by)
+    by       <- get_df_names(x, !!by)
 
     # 时间变量的验证
     if (isempty(time)) {
         if (isempty(by)) {
-            if (stxtcheck(df)[[1]]) {
-                xt   <- attr(df, "xt")
+            if (stxtcheck(x)[[1]]) {
+                xt   <- attr(x, "xt")
                 by   <- xt[1]
                 time <- xt[2]
-            } else if (sttscheck(df)[[1]]) {
-                time <- attr(df, "ts")
+            } else if (sttscheck(x)[[1]]) {
+                time <- attr(x, "ts")
             } else {
                 stop("time variable isnot setting")
             }
@@ -99,9 +96,9 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
             stop("Cannot set \"by\" without setting \"time\"")
         }
     }
-    if (isempty(time))           stop("Time variable setting error")
-    if (length(time) != 1)       stop("only one time variable is allowed")
-    if (!is.integer(df[[time]])) stop("time variable must point to an integer vector")
+    if (isempty(time))          stop("Time variable setting error")
+    if (length(time) != 1)      stop("only one time variable is allowed")
+    if (!is.integer(x[[time]])) stop("time variable must point to an integer vector")
 
     # 待求 Lag 的变量
     if (all(isempty(varlist))) varlist <- names_df
@@ -113,24 +110,24 @@ stlag.data.frame <- function(df, varlist = NULL, time = NULL, by = NULL,
     # 在 data.table 上进行修改
     if (isempty(mode)) {
         if (all(isempty(by))) {
-            df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
-                                           .SD[[1]], ..n),
+            x[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
+                                          .SD[[1]], ..n),
                 .SDcols = c(time, varlist)]
         } else {
-            df[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
-                                           .SD[[1]], ..n),
+            x[, (k.lag.varlist) := lapply(.SD[, -1], stlag.default,
+                                          .SD[[1]], ..n),
                 by = c(by), .SDcols = c(time, varlist)]
         }
-        return(df)
+        return(x)
     }
 
     # 输出制定模式的结果
     new.df <- if (all(isempty(by))) {
-        df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
-             .SDcols = c(time, varlist)]
+        x[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
+            .SDcols = c(time, varlist)]
     } else {
-        df[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
-             by = c(by), .SDcols = c(time, varlist)]
+        x[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
+            by = c(by), .SDcols = c(time, varlist)]
     }
     setnames(new.df, c(by, time, k.lag.varlist))
     out <- if (mode == "list") {

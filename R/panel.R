@@ -26,7 +26,7 @@ stxtcheck <- function(df) {
 #' set data.frame as panel data
 #'
 #' @description Mark `data.table` as Panel data, and set `id` and `time`
-#' @param data a data.table object
+#' @param df a data.table object
 #' @param id variable name as panel id
 #' @param time variable name as panel time
 #' @export
@@ -45,11 +45,15 @@ stxtset <- function(df, id, time) {
 
 #' execute propensity match and return match result object with match table
 #'
-#' @param sample a data.table object, one line per individual 
+#' @param sample a data.table object, one line per individual
 #' @param id name of a column used to identify individual
 #' @param treat name of a column used to identify treated status
 #' @param pscore name of a column for propensity score
-#' @param args a list contain element to be passed to `MatchIt::matchid`
+#' @param ... additional arguments forwarded to `match_fun` (e.g. `caliper`).
+#' @param match_fun function performing the actual matching; default
+#'   `nearest_match`.
+#' @param result_handle_fun optional function to post-process the matching
+#'   result before extracting the match table.
 #'
 #' @export
 psm <- function(sample, id, treat, pscore, ...,
@@ -92,8 +96,11 @@ matchit_result_handle <- function(result) {
 #' @param treat variable name that indicates whether the unit is treated
 #' @param cov character vector indicating the set of covarieates
 #' @param lag an integer vector indicating how to use lags of covarieates
+#' @param id column name of panel id; falls back to `attr(data, "xt")[1]`.
+#' @param time column name of panel time; falls back to `attr(data, "xt")[2]`.
 #' @param method a string indicating the method used to calcuate propensity
 #'        score which will be passed to `binomial()` as augument `link`.
+#' @param ... additional arguments forwarded to the matching function.
 #' @return a list with match result, match log and balance check result
 #' @export
 stxtpsm <- function(data, treat, cov, lag  = NULL, id     = NULL,
@@ -384,6 +391,18 @@ standarise_lag <- function(lag = NULL,
 }
 
 #' nearest match with distance
+#'
+#' @param data a data.table containing `treat` and `distance` columns.
+#' @param treat column name of the binary treatment indicator.
+#' @param distance column name of the matching distance / propensity score.
+#' @param discard observations to discard outside common support; one of
+#'   `"both"`, `"none"`, `"control"`, `"treat"`. Default `"both"`.
+#' @param caliper numeric caliper width (max allowed distance between matches).
+#' @param std.caliper logical; if `TRUE`, interpret `caliper` as a multiple of
+#'   the standard deviation of `distance`.
+#' @param replace logical; if `TRUE`, control units may be reused.
+#' @param ... additional arguments controlling match order (`m.order`) and
+#'   distance comparison (`diff_process_fun`).
 #' @export
 nearest_match <- function(data, treat, distance,
                           discard = "both",

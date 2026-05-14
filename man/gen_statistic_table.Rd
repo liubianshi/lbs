@@ -23,9 +23,12 @@ gen_statistic_table(
 
 \item{t}{t statistic  data.frame}
 
+\item{format}{a list contain format information}
+
 \item{star}{a list contain cut and symbol}
 
-\item{foramt}{a list contain format information}
+\item{outfmt}{output format passed to \code{adjstar()}; one of \code{"md"},
+\code{"flextable"}, \code{"docx"}, \code{"word"}, \code{"html"}, \code{"pdf"}, \code{"kable"}, \code{"text"}}
 }
 \description{
 Gen Academic table

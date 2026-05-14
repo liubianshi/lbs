@@ -15,19 +15,23 @@ genformula(
 )
 }
 \arguments{
-\item{dep:}{dependent variable, require}
+\item{varlist}{character vector; the first element is the dependent variable
+and the remainder are exogenous independent variables.}
 
-\item{indep_ex:}{exogeneous independent variables, require}
+\item{method}{estimation backend: \code{"linear"} (default), \code{"felm"}, \code{"fixest"},
+or \code{"fixest_sunab"}.}
 
-\item{fe:}{fixed effect, optional}
+\item{fe}{character vector of fixed-effect variable names.}
 
-\item{cluster:}{cluster varaible, optional}
+\item{cluster}{character vector of cluster variable names (used by \code{felm}).}
 
-\item{en:}{endogenous independent variables, optional}
+\item{en}{character vector of endogenous independent variables.}
 
-\item{iv:}{Instrumental variables, must longer than \code{en}}
+\item{iv}{character vector of instrumental variables; must be at least as
+long as \code{en}.}
 
-\item{method:}{Formula usage scenario, default is felm}
+\item{...}{additional arguments forwarded to the underlying formula builder
+(e.g. to \code{sunab()} when \code{method = "fixest_sunab"}).}
 }
 \description{
 gen regress formula

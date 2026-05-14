@@ -14,9 +14,9 @@ Describe the basic information of variables in stata-style
 }
 \examples{
 df <- data.frame(a = 1:3, b = 2:4)
-des(df)
+stdes(df)
 
 attr(df$a, "label") = "A"
 attr(df$b, "label") = "B"
-des(df)
+stdes(df)
 }

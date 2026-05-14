@@ -2,20 +2,21 @@
 % Please edit documentation in R/getData.R
 \name{getdatainfo}
 \alias{getdatainfo}
-\title{Get infomation form data.repo}
+\title{Get variable metadata from the archive index}
 \usage{
 getdatainfo(database, table, var = NULL)
 }
 \arguments{
-\item{database}{SQLite database path}
+\item{database}{Database name.}
 
-\item{table}{Table name}
+\item{table}{Table name.}
 
-\item{var}{A character vector consist of column names.}
+\item{var}{Character vector of column names. NULL returns all columns.}
 }
 \value{
-return a data.frame contain data info
+A data.table of metadata rows.
 }
 \description{
-get data information from srdm repo
+\emph{Personal use!} Query variable or table metadata stored in
+\verb{_meta_tables.parquet} / \verb{_meta_variables.parquet}.
 }

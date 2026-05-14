@@ -17,6 +17,11 @@ trans_scale_factory <- function(x, y) {
 
 #' set default graph elements
 #'
+#' @param dpi integer; output DPI used to scale font sizes.
+#' @param linetype default line type used by built-in element helpers.
+#' @param linecolor default line/grid colour.
+#' @param fontcolor default text colour.
+#' @param fontfamily default text family.
 #' @export
 setgraphelements <- function(
     dpi = 600L,

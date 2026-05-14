@@ -8,20 +8,20 @@
 \usage{
 stlag(x, ...)
 
-\method{stlag}{default}(x, time, n = 1L)
+\method{stlag}{default}(x, time, n = 1L, ...)
 
-\method{stlag}{data.frame}(df, varlist = NULL, time = NULL, by = NULL, n = 1L, mode = NULL)
+\method{stlag}{data.frame}(x, varlist = NULL, time = NULL, by = NULL, n = 1L, mode = NULL, ...)
 }
 \arguments{
-\item{x}{a vector.}
+\item{x}{a vector, or (in the data.frame method) a data.table / data.frame.
+If hoping update by reference, data.table is required.}
+
+\item{...}{additional arguments forwarded to the method.}
 
 \item{time}{a interger vector object for x, and a name or string for df.
 For x, time length must equal to x.}
 
 \item{n}{an integer.}
-
-\item{df}{a a data.table or data.frame object.
-If hoping update by reference, data.table is required.}
 
 \item{varlist}{Variable names needed to calculate lagged terms.
 a bare name and a character vector are acceptable.}

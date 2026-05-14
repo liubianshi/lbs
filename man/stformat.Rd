@@ -14,20 +14,21 @@ stformat(
 )
 }
 \arguments{
-\item{x, }{numeric vector}
+\item{x}{numeric vector}
 
-\item{digits, }{how many significant digits are to be used for
+\item{digits}{how many significant digits are to be used for
 numeric and complex \code{x}.  The default, \code{NULL}, uses
 \code{getOption("digits")}.}
 
-\item{nsmall, }{the minimum number of digits to the right of the
+\item{nsmall}{the minimum number of digits to the right of the
 decimal point in formatting real/complex numbers in
 non-scientific formats.}
 
-\item{na.replace, }{used to replace \code{NA}}
+\item{width}{the \emph{minimum} field width or \code{NULL}/\code{0} for no restriction.}
 
-\item{width:}{\code{default} method: the \emph{minimum} field width or
-\code{NULL} or \code{0} for no restriction.}
+\item{big.mark}{character used as thousands separator in formatted output.}
+
+\item{na.replace}{string used to replace \code{NA} values in the output.}
 }
 \description{
 format number in a reasonable way.

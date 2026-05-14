@@ -15,6 +15,26 @@ nearest_match(
   ...
 )
 }
+\arguments{
+\item{data}{a data.table containing \code{treat} and \code{distance} columns.}
+
+\item{treat}{column name of the binary treatment indicator.}
+
+\item{distance}{column name of the matching distance / propensity score.}
+
+\item{discard}{observations to discard outside common support; one of
+\code{"both"}, \code{"none"}, \code{"control"}, \code{"treat"}. Default \code{"both"}.}
+
+\item{caliper}{numeric caliper width (max allowed distance between matches).}
+
+\item{std.caliper}{logical; if \code{TRUE}, interpret \code{caliper} as a multiple of
+the standard deviation of \code{distance}.}
+
+\item{replace}{logical; if \code{TRUE}, control units may be reused.}
+
+\item{...}{additional arguments controlling match order (\code{m.order}) and
+distance comparison (\code{diff_process_fun}).}
+}
 \description{
 nearest match with distance
 }

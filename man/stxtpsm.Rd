@@ -24,8 +24,14 @@ stxtpsm(
 
 \item{lag}{an integer vector indicating how to use lags of covarieates}
 
+\item{id}{column name of panel id; falls back to \code{attr(data, "xt")[1]}.}
+
+\item{time}{column name of panel time; falls back to \code{attr(data, "xt")[2]}.}
+
 \item{method}{a string indicating the method used to calcuate propensity
 score which will be passed to \code{binomial()} as augument \code{link}.}
+
+\item{...}{additional arguments forwarded to the matching function.}
 }
 \value{
 a list with match result, match log and balance check result

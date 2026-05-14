@@ -1,7 +1,12 @@
 #' Custom theme for ggplot: minimal
 #'
-#' @title: ggplot theme, based on `cowplot` 的 `theme_minimal_grid`
+#' @description A ggplot theme based on `cowplot::theme_minimal_hgrid()` with
+#'   font sizes scaled by `dpi`.
 #'
+#' @param legend.position passed to `ggplot2::theme()`. Default `"top"`.
+#' @param dpi integer; output DPI used to scale font sizes. Default `600L`.
+#' @param fontfamily font family for all text. Defaults to
+#'   `getOption("font.serif")` or `"serif"` if unset.
 #' @export
 lbs_theme_minimal <- function(legend.position = "top",
                               dpi = 600L,

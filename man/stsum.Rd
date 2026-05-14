@@ -2,20 +2,70 @@
 % Please edit documentation in R/stata_related.R
 \name{stsum}
 \alias{stsum}
+\alias{stsum.default}
+\alias{stsum.data.frame}
 \title{stata-style sumarisze}
 \usage{
 stsum(object, ...)
+
+\method{stsum}{default}(
+  object,
+  na.rm = TRUE,
+  format = TRUE,
+  digits = getOption("digits"),
+  nsmall = 3L,
+  width = 7L,
+  big.mark = ",",
+  quietly = FALSE,
+  ...
+)
+
+\method{stsum}{data.frame}(
+  object,
+  variable,
+  label = NULL,
+  na.rm = TRUE,
+  format = TRUE,
+  digits = getOption("digits"),
+  nsmall = 3,
+  width = 7,
+  big.mark = ",",
+  ...
+)
 }
 \arguments{
-\item{object}{numerical vector of data.frame. If the object is a data.frame,
+\item{object}{numerical vector or data.frame. If the object is a data.frame,
 \code{variable} is required.}
 
-\item{viaralbe}{variable name of an character vector consists of variable names}
+\item{...}{arguments forwarded to the method (see \code{stsum.default} and
+\code{stsum.data.frame}).}
 
-\item{label}{\code{NULL}, \code{TRUE} or an character vector consists of variable labels.
-The length of labels must be equal to the length of variables unless the
-label is \code{NULL} or \code{TREU}}
+\item{na.rm}{logical; if TRUE drop NAs before summarising.}
+
+\item{format}{logical; if TRUE format numeric output via \code{stformat()}.}
+
+\item{digits}{passed to \code{stformat()}.}
+
+\item{nsmall}{passed to \code{stformat()}.}
+
+\item{width}{passed to \code{stformat()}.}
+
+\item{big.mark}{passed to \code{stformat()}.}
+
+\item{quietly}{logical; if TRUE suppress the printed table.}
+
+\item{variable}{bare name or character vector of variable names in \code{object}.}
+
+\item{label}{\code{NULL}, \code{TRUE}, or a character vector of variable labels;
+length must equal \code{variable} unless \code{NULL} or \code{TRUE}.}
 }
 \description{
 generate a stata-style sumarisze table
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{stsum(default)}: default method for numeric vectors.
+
+\item \code{stsum(data.frame)}: data.frame method summarising one or more columns.
+
+}}

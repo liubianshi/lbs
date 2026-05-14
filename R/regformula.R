@@ -1,12 +1,16 @@
 #' gen regress formula
 #'
-#' @param dep: dependent variable, require
-#' @param indep_ex: exogeneous independent variables, require 
-#' @param fe: fixed effect, optional
-#' @param cluster: cluster varaible, optional
-#' @param en: endogenous independent variables, optional
-#' @param iv: Instrumental variables, must longer than `en`
-#' @param method: Formula usage scenario, default is felm
+#' @param varlist character vector; the first element is the dependent variable
+#'   and the remainder are exogenous independent variables.
+#' @param method estimation backend: `"linear"` (default), `"felm"`, `"fixest"`,
+#'   or `"fixest_sunab"`.
+#' @param fe character vector of fixed-effect variable names.
+#' @param cluster character vector of cluster variable names (used by `felm`).
+#' @param en character vector of endogenous independent variables.
+#' @param iv character vector of instrumental variables; must be at least as
+#'   long as `en`.
+#' @param ... additional arguments forwarded to the underlying formula builder
+#'   (e.g. to `sunab()` when `method = "fixest_sunab"`).
 #'
 #' @export
 genformula <- function(varlist, method = NULL, fe = NULL, cluster = NULL,

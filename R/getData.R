@@ -1,24 +1,28 @@
+archive_base_dir <- function() {
+  base <- Sys.getenv("DATA_ARCHIVE")
+  if (nzchar(base)) base else file.path(Sys.getenv("HOME"), "Data", "DBMS")
+}
+
 meta_parquet_path <- function(tbl) {
-  base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
-    Sys.getenv("DATA_ARCHIVE")
-  } else {
-    file.path(Sys.getenv("HOME"), "Data", "DBMS")
-  }
-  filename <- switch(tbl,
-    tables    = "_meta_tables.parquet",
+  filename <- switch(
+    tbl,
+    tables = "_meta_tables.parquet",
     variables = "_meta_variables.parquet",
     stop("unknown meta table: ", tbl)
   )
-  file.path(base, filename)
+  file.path(archive_base_dir(), filename)
 }
 
 open_meta_con <- function() {
   con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   for (tbl in c("tables", "variables")) {
     p <- meta_parquet_path(tbl)
-    if (file.exists(p))
-      DBI::dbExecute(con,
-        sprintf("CREATE VIEW meta_%s AS SELECT * FROM '%s'", tbl, p))
+    if (file.exists(p)) {
+      DBI::dbExecute(
+        con,
+        sprintf("CREATE VIEW meta_%s AS SELECT * FROM '%s'", tbl, p)
+      )
+    }
   }
   con
 }
@@ -50,18 +54,16 @@ read_archive <- function(
   noinfo = TRUE
 ) {
   if (is.null(path)) {
-    base <- if (nzchar(Sys.getenv("DATA_ARCHIVE"))) {
-      Sys.getenv("DATA_ARCHIVE")
-    } else {
-      file.path(Sys.getenv("HOME"), "Data", "DBMS")
-    }
-    path <- file.path(base, paste0(database, "_", table, ".parquet"))
+    path <- parquet_path(database, table)
   }
   stopifnot(file.exists(path))
 
   con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  DBI::dbExecute(con, sprintf("CREATE VIEW %s AS SELECT * FROM '%s'", table, path))
+  DBI::dbExecute(
+    con,
+    sprintf("CREATE VIEW %s AS SELECT * FROM '%s'", table, path)
+  )
 
   if (is.null(var)) {
     var <- "*"
@@ -102,6 +104,7 @@ read_archive <- function(
 }
 
 #' @rdname read_archive
+#' @param ... arguments forwarded to `read_archive()`.
 #' @export
 getDataSQLite <- function(...) {
   .Deprecated("read_archive")
@@ -125,8 +128,9 @@ getdatainfo <- function(database, table, var = NULL) {
       paste(paste0("'", database, ":", table, "'"), collapse = ",\n\t")
     )
   } else if (isTRUE(var %in% c("all", "*"))) {
-    if (!(length(database) == 1 && length(table) == 1))
+    if (!(length(database) == 1 && length(table) == 1)) {
       stop("Query all variables only allowed in one table")
+    }
     sel <- gettextf(
       "SELECT * FROM meta_variables WHERE name LIKE %s",
       paste0("'", database, ":", table, ":%'")
@@ -163,9 +167,9 @@ list_variables <- function() {
   varnames <- vars$name %>% stringr::str_split(":")
   invisible(data.table(
     database = purrr::map_chr(varnames, 1),
-    table    = purrr::map_chr(varnames, 2),
+    table = purrr::map_chr(varnames, 2),
     variable = purrr::map_chr(varnames, 3),
-    label    = vars$label
+    label = vars$label
   ))
 }
 
@@ -186,15 +190,17 @@ list_tables <- function() {
   con <- open_meta_con()
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
-  tables <- DBI::dbGetQuery(con,
-    "SELECT name, keys, description FROM meta_tables")
+  tables <- DBI::dbGetQuery(
+    con,
+    "SELECT name, keys, description FROM meta_tables"
+  )
   tablenames <- tables$name %>% stringr::str_split(":")
   databaseList <- purrr::map_chr(tablenames, 1)
-  tableList    <- purrr::map_chr(tablenames, 2)
+  tableList <- purrr::map_chr(tablenames, 2)
   setDT(tables)[, `:=`(
     database = ..databaseList,
-    table    = ..tableList,
-    name     = NULL
+    table = ..tableList,
+    name = NULL
   )]
   data.table::setcolorder(tables, c("database", "table"))
   tables

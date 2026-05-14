@@ -16,6 +16,28 @@ event_study_result(
   drop_exposure_list = -1
 )
 }
+\arguments{
+\item{data}{a data.frame / data.table with panel observations.}
+
+\item{id}{column name identifying the cross-sectional unit.}
+
+\item{time}{column name identifying the time period.}
+
+\item{output}{column name of the outcome variable.}
+
+\item{treat_status}{optional column name of a binary treatment indicator.
+Either \code{treat_status} or \code{group} must be supplied.}
+
+\item{group}{optional column name storing the first-treatment cohort.}
+
+\item{never_treat}{value in \code{group} representing never-treated units; rows
+with this value are recoded to \code{NA}.}
+
+\item{covs}{character vector of additional covariate column names.}
+
+\item{drop_exposure_list}{integer vector of relative-time dummies to drop
+(reference category). Default \code{-1}.}
+}
 \description{
 execute pre-trend test for did analysis
 }

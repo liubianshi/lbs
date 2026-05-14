@@ -12,6 +12,17 @@ setgraphelements(
   fontfamily = "Noto Serif CJK SC"
 )
 }
+\arguments{
+\item{dpi}{integer; output DPI used to scale font sizes.}
+
+\item{linetype}{default line type used by built-in element helpers.}
+
+\item{linecolor}{default line/grid colour.}
+
+\item{fontcolor}{default text colour.}
+
+\item{fontfamily}{default text family.}
+}
 \description{
 set default graph elements
 }

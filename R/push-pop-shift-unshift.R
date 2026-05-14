@@ -8,6 +8,8 @@
 
 #' perl-style push
 #'
+#' @param x a vector or list in the caller's frame; modified in place.
+#' @param ... values (optionally named) to append.
 #' @export
 push <- function(x, ...) {
     values <- list(...)
@@ -31,6 +33,8 @@ push <- function(x, ...) {
 
 #' perl-style pop
 #'
+#' @param x a vector or list in the caller's frame; modified in place.
+#' @param drop logical; if `TRUE`, unwrap a single-element list result.
 #' @export
 pop <- function(x, drop = TRUE) {
     if (length(x) == 0) return(NULL)
@@ -46,6 +50,8 @@ pop <- function(x, drop = TRUE) {
 
 #' perl-style unshift
 #'
+#' @param x a vector or list in the caller's frame; modified in place.
+#' @param ... values (optionally named) to prepend.
 #' @export
 unshift <- function(x, ...) {
     values <- list(...)
@@ -69,6 +75,8 @@ unshift <- function(x, ...) {
 
 #' perl-style shift
 #'
+#' @param x a vector or list in the caller's frame; modified in place.
+#' @param drop logical; if `TRUE`, unwrap a single-element list result.
 #' @export
 shift <- function(x, drop = TRUE) {
     if (length(x) == 0) return(NULL)
