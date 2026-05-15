@@ -18,8 +18,9 @@ If hoping update by reference, data.table is required.}
 
 \item{...}{additional arguments forwarded to the method.}
 
-\item{time}{a interger vector object for x, and a name or string for df.
-For x, time length must equal to x.}
+\item{time}{an integer vector (vector method) or a variable name / character
+string (data.frame method). In the vector case, \code{length(time)} must
+equal \code{length(x)}.}
 
 \item{n}{an integer.}
 

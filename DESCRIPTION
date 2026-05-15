@@ -25,6 +25,7 @@ Imports:
     arrow,
     duckdb,
     stringr (>= 1.0),
+    yaml,
     ggplot2,
     colorspace,
     cowplot,
