@@ -425,7 +425,11 @@ register_lake <- function(
   # rename. R's file.rename is atomic on POSIX when src/dst share a filesystem.
   data_tmp <- tempfile(tmpdir = entity_dir, fileext = ".parquet.tmp")
   arrow::write_parquet(df, data_tmp)
-  data_replaced <- file.exists(data_path)
+  # Captured BEFORE the rename so the rollback path below knows whether we
+  # created data.parquet fresh (safe to unlink on CLI failure) or replaced an
+  # existing one (the rename has already lost the prior bytes — the user
+  # implicitly accepted that by passing overwrite=TRUE).
+  data_preexisted <- file.exists(data_path)
   if (!file.rename(data_tmp, data_path)) {
     ok <- file.copy(data_tmp, data_path, overwrite = TRUE)
     unlink(data_tmp)
@@ -446,8 +450,7 @@ register_lake <- function(
   exit_code <- attr(res, "status")
 
   if (!is.null(exit_code) && exit_code != 0L) {
-    # Rollback the parquet placement so the lake stays consistent.
-    if (!data_replaced) unlink(data_path)
+    if (!data_preexisted) unlink(data_path)
     stop(sprintf(
       "econ-data entity register failed (exit %d):\n%s",
       exit_code, paste(res, collapse = "\n")
