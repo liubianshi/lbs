@@ -1,4 +1,5 @@
 .vim/
+.scout/
 
 # History files
 .Rhistory
