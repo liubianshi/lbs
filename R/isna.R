@@ -60,11 +60,17 @@ fill = function(x, forward = TRUE, maxgap = Inf) {
     x
 }
 
-#' scalar version of ifelse
-#' @param x, an object
-#' @param then, return value when `do.call(fun, list(x))` is `TRUE` 
-#' @param otherwise, return value when `do.call(fun, list(x))` is `FALSE`, default value is x
-#' @param fun, a function or function name, used to judge, default value is `is.null`
+#' Scalar version of ifelse
+#'
+#' Returns `then` when `fun(x)` is `TRUE`, otherwise returns `otherwise`.
+#'
+#' @param x An object to test.
+#' @param then Return value when `do.call(fun, list(x))` is `TRUE`.
+#' @param otherwise Return value when `do.call(fun, list(x))` is `FALSE`.
+#'   Defaults to `x`.
+#' @param fun A function or function name used as the predicate.
+#'   Defaults to `is.null`.
+#' @return `then` or `otherwise` depending on `fun(x)`.
 #' @export
 ifthen <- function(x, then, otherwise = x, fun = is.null) {
     result <- do.call(fun, list(x))

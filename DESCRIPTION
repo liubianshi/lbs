@@ -1,6 +1,6 @@
 Package: lbs
 Title: Personal R Toolkit for Data Archival and Stata-Style Analysis
-Version: 0.0.0.9050
+Version: 0.0.0.9071
 Authors@R:
     person(given = "Wei",
            family = "Luo",
@@ -9,7 +9,8 @@ Authors@R:
 Description: A personal collection of R helpers covering Parquet-based data
     archival with metadata indexing, Stata-style data inspection
     (stdes/stsum/stxtset), panel/time-series helpers, propensity score
-    matching, event-study DID utilities, and ggplot2 theme/plot helpers.
+    matching, event-study DID utilities, ggplot2 theme/plot helpers, and a
+    config-driven task runner that integrates with the go-task CLI.
 License: MIT + file LICENSE
 Encoding: UTF-8
 LazyData: true
@@ -26,6 +27,8 @@ Imports:
     duckdb,
     stringr (>= 1.0),
     yaml,
+    glue,
+    fs,
     ggplot2,
     colorspace,
     cowplot,
@@ -33,5 +36,9 @@ Imports:
 Suggests:
     testthat,
     knitr,
-    withr
+    withr,
+    cachem,
+    memoise,
+    qs,
+    qs2
 Config/roxygen2/version: 8.0.0

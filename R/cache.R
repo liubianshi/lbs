@@ -1,5 +1,24 @@
 delayedAssign("LOG", logger_factory("Cache"))
 
+# Detect the best available .qs backend (qs2 preferred, qs as fallback).
+# Result is cached for the session — requireNamespace() only runs once.
+.qs_fns_cache <- NULL
+.qs_fns <- function() {
+  if (!is.null(.qs_fns_cache)) return(.qs_fns_cache)
+  fns <- if (requireNamespace("qs2", quietly = TRUE)) {
+    list(read = qs2::qs_read, write = qs2::qs_save)
+  } else if (requireNamespace("qs", quietly = TRUE)) {
+    list(
+      read  = qs::qread,
+      write = function(obj, path) qs::qsave(obj, path, preset = "fast")
+    )
+  } else {
+    stop("Package 'qs2' or 'qs' needed for .qs caching. Please install one.", call. = FALSE)
+  }
+  .qs_fns_cache <<- fns
+  fns
+}
+
 #' Cache the value of an expression on disk
 #'
 #' Evaluate an expression once and persist its result to a cache file.
@@ -46,11 +65,9 @@ cache_result <- function(expressions, filename, update = FALSE) {
     readfile <- readRDS
     writefile <- saveRDS
   } else {
-    if (!requireNamespace("qs", quietly = TRUE)) {
-      stop("Package 'qs' needed for non-RDS caching. Please install it.", call. = FALSE)
-    }
-    readfile <- qs::qread
-    writefile <- qs::qsave
+    qfns <- .qs_fns()
+    readfile <- qfns$read
+    writefile <- qfns$write
   }
 
   path <- if (fs::path_dir(filename) == ".") {
@@ -118,7 +135,7 @@ cache_result <- function(expressions, filename, update = FALSE) {
 cache_object <- function(name, expressions, cache = parent.frame(), update = FALSE) {
   caller_env <- parent.frame()
 
-  backend <- if (inherits(cache, "cachem")) {
+  backend <- if (is.environment(cache) && is.function(cache[["get"]]) && is.function(cache[["set"]])) {
     list(
       has = function(k)    !cachem::is.key_missing(cache$get(k)),
       get = function(k)    cache$get(k),
@@ -141,7 +158,7 @@ cache_object <- function(name, expressions, cache = parent.frame(), update = FAL
   invisible(res)
 }
 
-#' Wrap a function with disk-backed caching and expiration
+#' Wrap a Function with Disk-Backed Caching and Expiration
 #'
 #' Create a cached variant of `f` that stores results on disk, reuses previous
 #' results for identical calls, and can refresh stale cache entries after a
@@ -189,7 +206,7 @@ cache_object <- function(name, expressions, cache = parent.frame(), update = FAL
 #' res3 <- fast_fetch(123, update = TRUE)
 #' }
 #' @export
-add_cache <- function(f, subdir = NULL, expire_days = 7L) {
+cache_fn <- function(f, subdir = NULL, expire_days = 7L) {
   # Input validation with informative error messages
   stopifnot(
     "f must be a function" = is.function(f),
@@ -223,7 +240,7 @@ add_cache <- function(f, subdir = NULL, expire_days = 7L) {
       subdir <- if (env_name == "R_GlobalEnv") "user_custom" else sub("^package:", "", env_name)
     }
     if (subdir == "user_custom") {
-      LOG$info("󰄼  No package name detected, caching will be stored in the 'user_custom' directory.")
+      LOG$info("No package name detected, caching will be stored in the 'user_custom' directory.")
     }
   }
 
@@ -234,11 +251,12 @@ add_cache <- function(f, subdir = NULL, expire_days = 7L) {
 
   # Initialize backend
   # fmt: skip
+  qfns <- .qs_fns()
   qs_backend <- cachem::cache_disk(
     dir       = cache_dir,
     extension = ".qs",
-    read_fn   = function(path) tryCatch(qs::qread(path), error = \(e) LOG$error("Cache corrupted")),
-    write_fn  = function(obj, path) qs::qsave(obj, path, preset = "fast")
+    read_fn   = function(path) tryCatch(qfns$read(path), error = \(e) LOG$error("Cache corrupted")),
+    write_fn  = qfns$write
   )
 
   # Internal runner: executes function and packages result with timestamp
@@ -306,7 +324,7 @@ add_cache <- function(f, subdir = NULL, expire_days = 7L) {
     c(f_args, extra_arg)
   }
 
-  wrapper_env <- new.env(parent = parent.env(environment()))
+  wrapper_env <- new.env(parent = baseenv())
   wrapper_env$memoized_runner <- memoized_runner
   wrapper_env$expire_days     <- expire_days
   wrapper_env$cache_arg_name  <- cache_arg_name

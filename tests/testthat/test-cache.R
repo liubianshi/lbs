@@ -72,26 +72,26 @@ test_that("cache_object rejects non-environment cache argument", {
   expect_error(cache_object("x", 1L, cache = list()), "is.environment")
 })
 
-# add_cache -------------------------------------------------------------------
+# cache_fn -------------------------------------------------------------------
 
-test_that("add_cache rejects a non-function", {
-  expect_error(add_cache(42), "f must be a function")
+test_that("cache_fn rejects a non-function", {
+  expect_error(cache_fn(42), "f must be a function")
 })
 
-test_that("add_cache rejects invalid expire_days", {
-  expect_error(add_cache(identity, expire_days = -1),      "expire_days must be positive")
-  expect_error(add_cache(identity, expire_days = "7"),     "expire_days must be numeric")
-  expect_error(add_cache(identity, expire_days = c(1, 2)), "single value")
+test_that("cache_fn rejects invalid expire_days", {
+  expect_error(cache_fn(identity, expire_days = -1),      "expire_days must be positive")
+  expect_error(cache_fn(identity, expire_days = "7"),     "expire_days must be numeric")
+  expect_error(cache_fn(identity, expire_days = c(1, 2)), "single value")
 })
 
-test_that("add_cache returns a function preserving original formals", {
+test_that("cache_fn returns a function preserving original formals", {
   skip_if_not_installed("cachem")
   skip_if_not_installed("memoise")
-  skip_if_not_installed("qs")
+  skip_if_not_installed("qs2")
   f <- function(x, n = 10L) x
   withr::with_tempdir({
     withr::with_envvar(c(XDG_CACHE_HOME = getwd()), {
-      cached_f <- add_cache(f, subdir = "test_formals")
+      cached_f <- cache_fn(f, subdir = "test_formals")
       expect_type(cached_f, "closure")
       nms <- names(formals(cached_f))
       expect_true("x"      %in% nms)
@@ -101,14 +101,14 @@ test_that("add_cache returns a function preserving original formals", {
   })
 })
 
-test_that("add_cache uses '.update' when original function already has 'update'", {
+test_that("cache_fn uses '.update' when original function already has 'update'", {
   skip_if_not_installed("cachem")
   skip_if_not_installed("memoise")
-  skip_if_not_installed("qs")
+  skip_if_not_installed("qs2")
   f <- function(x, update = FALSE) x
   withr::with_tempdir({
     withr::with_envvar(c(XDG_CACHE_HOME = getwd()), {
-      cached_f <- add_cache(f, subdir = "test_rename")
+      cached_f <- cache_fn(f, subdir = "test_rename")
       expect_true(".update" %in% names(formals(cached_f)))
     })
   })

@@ -2,19 +2,24 @@
 % Please edit documentation in R/isna.R
 \name{ifthen}
 \alias{ifthen}
-\title{scalar version of ifelse}
+\title{Scalar version of ifelse}
 \usage{
 ifthen(x, then, otherwise = x, fun = is.null)
 }
 \arguments{
-\item{x, }{an object}
+\item{x}{An object to test.}
 
-\item{then, }{return value when \code{do.call(fun, list(x))} is \code{TRUE}}
+\item{then}{Return value when \code{do.call(fun, list(x))} is \code{TRUE}.}
 
-\item{otherwise, }{return value when \code{do.call(fun, list(x))} is \code{FALSE}, default value is x}
+\item{otherwise}{Return value when \code{do.call(fun, list(x))} is \code{FALSE}.
+Defaults to \code{x}.}
 
-\item{fun, }{a function or function name, used to judge, default value is \code{is.null}}
+\item{fun}{A function or function name used as the predicate.
+Defaults to \code{is.null}.}
+}
+\value{
+\code{then} or \code{otherwise} depending on \code{fun(x)}.
 }
 \description{
-scalar version of ifelse
+Returns \code{then} when \code{fun(x)} is \code{TRUE}, otherwise returns \code{otherwise}.
 }
