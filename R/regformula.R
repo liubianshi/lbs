@@ -33,7 +33,7 @@ genformula_linear <- function(dep, indep, asstring = FALSE) {
     f <- paste(paste0(dep, collapse = " + "),
                paste(indep, collapse = " + "),
                sep = " ~ ")
-    if (isFALSE(asstring)) f <- as.formula(f)
+    if (isFALSE(asstring)) f <- stats::as.formula(f)
     return(f)
 }
 
@@ -43,7 +43,7 @@ genformula_fixest <- function(dep, indep_ex, fe, en, iv) {
     en <- if (is.null(en)) "" else genformula_linear(en, iv, asstring = TRUE)
     f <- c(dep_indep, fe, en)
     f <- paste(f[f != ""], collapse = " | ")
-    return(as.formula(f))
+    return(stats::as.formula(f))
 }
 
 genformula_felm <- function(dep, indep_ex, fe, cluster, en, iv) {
@@ -63,27 +63,27 @@ genformula_felm <- function(dep, indep_ex, fe, cluster, en, iv) {
                     paste0(iv, collapse = " + "), ")")
         }
     }
-    as.formula(paste0(c(dep_indep, fe, en, cluster), collapse = " | ")) 
+    stats::as.formula(paste0(c(dep_indep, fe, en, cluster), collapse = " | ")) 
 }
 
 genformula_fixest_sunab <- function(dep, indep, fe, ...) {
     dep        <- as.symbol(dep)
     indep      <- character_vector_to_linear_expression(indep)
     fe         <- character_vector_to_linear_expression(fe)
-    sunab_args <- rlang::enexprs(...) %>%
+    sunab_args <- rlang::enexprs(...) |>
                   purrr::map(~ if (is.character(rlang::expr(!!.x))) as.symbol(.x)
                                else                                 .x)
     sunab      <- as.call(c(quote(sunab), sunab_args))
 
     if (is.null(indep)) {
-        rlang::expr(!!dep ~ !!sunab | !!fe) %>% as.formula()
+        stats::as.formula(rlang::expr(!!dep ~ !!sunab | !!fe))
     } else {
-        rlang::expr(!!dep ~ !!indep + !!sunab | !!fe) %>% as.formula()
+        stats::as.formula(rlang::expr(!!dep ~ !!indep + !!sunab | !!fe))
     }
 }
 
 character_vector_to_linear_expression <- function(x) {
     if (is.null(x)) return(NULL)
-    purrr::map(x, as.symbol) %>% purrr::reduce(~ rlang::expr(!!.x + !!.y))
+    purrr::map(x, as.symbol) |> purrr::reduce(~ rlang::expr(!!.x + !!.y))
 }
 

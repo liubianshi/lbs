@@ -17,7 +17,7 @@ gen_statistic_table <- function(
     star = list(cut = c(0.1, 0.05, 0.01), symbol = c("*", "**", "***")),
     outfmt = "md"
 ) {
-    if (!hasName(format, "stat")) format <- c(stat = "3", format)
+    if (!utils::hasName(format, "stat")) format <- c(stat = "3", format)
     stopifnot(names(format)[1] == "stat")
     out <- vector("list", length(format))
     names(out) <- names(format)
@@ -46,9 +46,9 @@ gen_statistic_table <- function(
     }
     out
 
-    data.table::rbindlist(out) %>%
-        data.table::setorderv(c("__2", "__1")) %>%
-        .[, !c("__1", "__2")]
+    result <- data.table::rbindlist(out)
+    data.table::setorderv(result, c("__2", "__1"))
+    result[, !c("__1", "__2")]
 }
 
 parse_c <- function(char) {
@@ -75,11 +75,11 @@ coef2str <- function(data, fmt) {
 
     regnames <- names(data)[purrr::map_lgl(data, is.numeric)]
     fm <- function(x, digits = NULL, l_par, r_par) {
-        y <- stformat(x, digits = digits, nsmall = digits, na.replace = "") %>% trimws()
+        y <- trimws(stformat(x, digits = digits, nsmall = digits, na.replace = ""))
         ifelse(y == "", "", paste0(l_par, y, r_par))
     }
     for (i in seq_along(regnames))
-        data[[regnames[i]]] %<>% fm(digits, l_par, r_par)
+        data[[regnames[i]]] <- fm(data[[regnames[i]]], digits, l_par, r_par)
     data
 }
 
@@ -144,7 +144,7 @@ genstar <- function(pvalue, star) {
     star <- ifelse(is.na(pvalue), NA, "") 
     for (i in seq_along(starcut)) {
         star <- ifelse(pvalue <= starcut[i], starsymbol[i], star)
-        star %<>% rempty("")
+        star <- rempty(star, "")
     }
     star
 }

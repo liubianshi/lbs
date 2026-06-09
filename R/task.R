@@ -100,8 +100,8 @@ task_output_path <- function(meta) {
   path_components <- strsplit(meta$name, ":", fixed = TRUE)[[1]]
   target_dir <- do.call(file.path, as.list(path_components))
 
-  fname <- ifthen(meta$filename, "default.qs2")
-  if (tools::file_ext(fname) == "") fname <- paste0(fname, ".qs2")
+  fname <- ifthen(meta$filename, "default.qs")
+  if (tools::file_ext(fname) == "") fname <- paste0(fname, ".qs")
 
   file.path(target_dir, fname)
 }
@@ -132,7 +132,7 @@ task_assert_meta <- function(meta) {
     LOG$error(glue::glue("Task '{meta$name}': Output path is missing"))
   }
   if (!tolower(tools::file_ext(meta$path)) %in% c("qs2", "qs")) {
-    LOG$error(glue::glue("Task '{meta$name}': Output file must end with .qs2 or .qs"))
+    LOG$error(glue::glue("Task '{meta$name}': Output file must end with .qs or .qs2"))
   }
 
   TRUE

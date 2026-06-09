@@ -16,11 +16,10 @@ Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
 Depends:
-    R (>= 3.1.0),
+    R (>= 4.1.0),
     data.table
 Imports:
     rlang,
-    magrittr,
     purrr,
     DBI,
     arrow,

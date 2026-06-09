@@ -2,9 +2,10 @@ delayedAssign("LOG", logger_factory("Cache"))
 
 # Detect the best available .qs backend (qs2 preferred, qs as fallback).
 # Result is cached for the session — requireNamespace() only runs once.
-.qs_fns_cache <- NULL
+.qs_env <- new.env(parent = emptyenv())
+.qs_env$cache <- NULL
 .qs_fns <- function() {
-  if (!is.null(.qs_fns_cache)) return(.qs_fns_cache)
+  if (!is.null(.qs_env$cache)) return(.qs_env$cache)
   fns <- if (requireNamespace("qs2", quietly = TRUE)) {
     list(read = qs2::qs_read, write = qs2::qs_save)
   } else if (requireNamespace("qs", quietly = TRUE)) {
@@ -15,7 +16,7 @@ delayedAssign("LOG", logger_factory("Cache"))
   } else {
     stop("Package 'qs2' or 'qs' needed for .qs caching. Please install one.", call. = FALSE)
   }
-  .qs_fns_cache <<- fns
+  .qs_env$cache <- fns
   fns
 }
 
@@ -319,7 +320,7 @@ cache_fn <- function(f, subdir = NULL, expire_days = 7L) {
 
   final_args <- if (is.null(f_args)) {
     LOG$warning("The target function is a Primitive function, unable to retain parameter hints, will use (...)")
-    do.call(alist, c(list(... = ), extra_arg))
+    c(alist(... = ), extra_arg)
   } else {
     c(f_args, extra_arg)
   }

@@ -14,7 +14,7 @@ stxtcheck <- function(df) {
         return(list(FALSE, message = "attribute xt contain varaible not in data.frame"))
     if (!is.integer(df[[xt[2]]]))
         return(list(FALSE, message = "time variable must point to an integer vector"))
-    id_time <- data.table(id = df[[xt[1]]], time = df[[xt[2]]])
+    id_time <- data.table::data.table(id = df[[xt[1]]], time = df[[xt[2]]])
     if (anyDuplicated(id_time[!is.na(time)]) != 0) {
         return(list(FALSE, message = paste(
             "exists duplicates by", xt[1], "and", xt[2]
@@ -34,7 +34,7 @@ stxtset <- function(df, id, time) {
     id           <- rlang::enquo(id)
     time         <- rlang::enquo(time)
     id_time_name <- get_df_names(df, !!id, !!time)
-    setattr(df, "xt", id_time_name)
+    data.table::setattr(df, "xt", id_time_name)
 
     check_result <- stxtcheck(df)
     if (isFALSE(check_result[[1]])) {
@@ -76,7 +76,7 @@ psm <- function(sample, id, treat, pscore, ...,
 
     control_list <- sample[[id]][match_table$control_no]
     treated_list <- sample[[id]][match_table$treat_no]
-    match_result$match_table <- data.table(
+    match_result$match_table <- data.table::data.table(
         ID      = c(treated_list, control_list),
         matchID = rep(paste(treated_list, control_list, sep = "-"), 2)
     )
@@ -85,9 +85,9 @@ psm <- function(sample, id, treat, pscore, ...,
 }
 
 matchit_result_handle <- function(result) {
-    match <- data.table(treat_no   = as.integer(rownames(result$match.matrix)),
-                        control_no = as.integer(result$match.matrix))
-    na.omit(match)
+    match <- data.table::data.table(treat_no   = as.integer(rownames(result$match.matrix)),
+                                    control_no = as.integer(result$match.matrix))
+    stats::na.omit(match)
 }
 
 #' calculate propensity score for panel data
@@ -99,7 +99,7 @@ matchit_result_handle <- function(result) {
 #' @param id column name of panel id; falls back to `attr(data, "xt")[1]`.
 #' @param time column name of panel time; falls back to `attr(data, "xt")[2]`.
 #' @param method a string indicating the method used to calcuate propensity
-#'        score which will be passed to `binomial()` as augument `link`.
+#'        score which will be passed to `stats::binomial()` as augument `link`.
 #' @param ... additional arguments forwarded to the matching function.
 #' @return a list with match result, match log and balance check result
 #' @export
@@ -120,20 +120,19 @@ stxtpsm <- function(data, treat, cov, lag  = NULL, id     = NULL,
     match_table     <- match_result$result
     match_log       <- match_result$log
 
-    sample <-
-        match_table[sample, on = "ID"] %>%
-        setorder(matchID, -TreatStart) %>%
-        .[!isempty(matchID), TreatStart := last(TreatStart), by = "matchID"]
-    
+    sample <- match_table[sample, on = "ID"]
+    data.table::setorder(sample, matchID, -TreatStart)
+    sample[!isempty(matchID), TreatStart := data.table::last(TreatStart), by = "matchID"]
+
     balance_check <-
-        list(before_match = sample[!Treat | (Treat & Time == TreatStart)],
-             after_match  = sample[!isempty(matchID) & Time == TreatStart]) %>%
-        lapply(diff_between_treat_control, treat  = "Treat",
+        lapply(list(before_match = sample[!Treat | (Treat & Time == TreatStart)],
+                    after_match  = sample[!isempty(matchID) & Time == TreatStart]),
+               diff_between_treat_control, treat  = "Treat",
                                            covs   = match_cov_names,
                                            pscore = "pscore")
 
-    sample %<>% .[, .(ID, Time, Treat, TreatStart, pscore, matchID)]
-    setnames(sample, c("ID", "Time", "Treat", "TreatStart"),
+    sample <- sample[, .(ID, Time, Treat, TreatStart, pscore, matchID)]
+    data.table::setnames(sample, c("ID", "Time", "Treat", "TreatStart"),
                      c(id,    time,   treat,   paste0(treat, "_start")))
     stxtset(sample, id, time)
     list(data  = sample, log = match_log, check = balance_check)
@@ -141,8 +140,8 @@ stxtpsm <- function(data, treat, cov, lag  = NULL, id     = NULL,
 
 # check statistics different
 diff_check <- function(var, data, over) {
-    formula <- as.formula(gettextf("%s ~ %s", var, over))
-    t <- t.test(formula, data)    
+    formula <- stats::as.formula(gettextf("%s ~ %s", var, over))
+    t <- stats::t.test(formula, data)    
     out <- data.frame(var,
                       t$estimate[1],
                       t$estimate[2],
@@ -159,7 +158,7 @@ prepare_sample_for_match <- function(data, id, time, treat, cov,
     # extract needed variable
     keep_vars <- c(id, time, treat, cov)
     sample <- data.table::as.data.table(data)[, ..keep_vars]
-    setnames(sample, c(id, time, treat), c("ID", "Time", "Treat"))
+    data.table::setnames(sample, c(id, time, treat), c("ID", "Time", "Treat"))
 
     # group individuals by first treated date
     sample[, TreatStart := cal_treated_start_time(Time, Treat), by = "ID"]
@@ -167,19 +166,19 @@ prepare_sample_for_match <- function(data, id, time, treat, cov,
 
     # cal cov lagged
     covs <- standardize_cov_lag(cov, lag)
-    covs %>% purrr::iwalk(function(lag, name) {
+    purrr::iwalk(covs, function(lag, name) {
         lags     <- lag$lags$lag
         cal_mean <- lag$lags$mean
         sample[, (lag$names) := cal_lag_of(.SD[[..name]], Time, ..lags, ..cal_mean), by = "ID"]
     })
-    cov_names  <- purrr::map(covs, "names") %>% unlist()
+    cov_names  <- unlist(purrr::map(covs, "names"))
 
     keep_vars  <- c("ID", "Time", "Treat", "TreatStart", cov_names)
     keep_times <- unique(sample$TreatStart)
-    sample     <- sample[, ..keep_vars]                   %>%
-                  .[!Treat | Time <= TreatStart]          %>% # drop observation treated more than one period
-                  .[Time %in% keep_times]                 %>% # drop time without treated individual
-                  na.omit(c("ID", "Time", "Treat", cov_names))
+    sample <- stats::na.omit(
+        sample[, ..keep_vars][!Treat | Time <= TreatStart][Time %in% keep_times],
+        c("ID", "Time", "Treat", cov_names)
+    )
 
     propensity_score <- cal_propensity_score(sample, "Treat", cov_names, method)
     sample$pscore <- propensity_score$result
@@ -218,7 +217,7 @@ standardize_cov_lag <- function(cov_names, lag_list = NULL) {
 cal_treated_start_time <- function(time, treat) {
     time <- as.integer(time)
     treat <- as.logical(treat)
-    L.treat <- stlag(treat, time, 1L) %>% ifempty(0)
+    L.treat <- ifempty(stlag(treat, time, 1L), 0)
     treatStart <- if (max(treat, na.rm = TRUE) == 0) {
         NA_integer_ 
     } else {
@@ -228,14 +227,14 @@ cal_treated_start_time <- function(time, treat) {
 }
 
 is_treated_group <- function(treat) {
-    max(treat != 0, na.rm = TRUE) %>% as.logical()
+    as.logical(max(treat != 0, na.rm = TRUE))
 }
 
 cal_propensity_score <- function(data, treat, covs, method = "logit") {
     stopifnot(all(c(treat, covs) %in% names(data)))
-    formula <- as.formula(gettextf("%s ~ %s", treat, paste(covs, collapse = " + ")))
-    esti <- glm(formula, data = data, family = binomial(link = method))
-    list(result = predict(esti, type = "response"), formula = formula)
+    formula <- stats::as.formula(gettextf("%s ~ %s", treat, paste(covs, collapse = " + ")))
+    esti <- stats::glm(formula, data = data, family = stats::binomial(link = method))
+    list(result = stats::predict(esti, type = "response"), formula = formula)
 }
 
 diff_between_treat_control <- function(data, treat, covs, pscore = NULL) {
@@ -243,10 +242,10 @@ diff_between_treat_control <- function(data, treat, covs, pscore = NULL) {
     if (!is.null(pscore)) {
         covs <- c(pscore, covs)
     }
-    lapply(covs, diff_check, data = data, over = treat) %>%
-    do.call(rbind, .) %>%
-    setDT() %>%
-    .[, variable := ..covs]
+    result <- do.call(rbind, lapply(covs, diff_check, data = data, over = treat))
+    data.table::setDT(result)
+    result[, variable := ..covs]
+    result
 }
 
 get_vars_from_formula <- function(fml) {
@@ -258,17 +257,17 @@ match_by_treat_start_date <- function(data, args) {
     stopifnot(inherits(data, "datatable_for_match"))
     args$formula  <- attr(data, "pscore_formula")
     covs <- get_vars_from_formula(args$formula)[-1]
-    breaks <- with(args, exists("breaks")) %>% 
+    breaks <- with(args, exists("breaks")) |>
               ifthen(args$breaks, NULL, fun = isTRUE)
     start_time_groups <- local({
         group_time_with_breaks  <- function(t, b, m = min(t), M = max(t)) {
             if (m == M || is.null(b)) return(as.list(t))
-            b <- c(m, b[b %in% t], M) %>% unique() %>% sort()
+            b <- sort(unique(c(m, b[b %in% t], M)))
             purrr::map2(b[-length(b)], b[-1], ~ if (.x == b[1]) t[t >= .x & t <= .y]
                                                 else            t[t >  .x & t <= .y])
         }
-        start_times <- sort(na.omit(intersect(data$Time, data$TreatStart)))
-        r <- group_time_with_breaks(start_times, na.omit(breaks))
+        start_times <- sort(stats::na.omit(intersect(data$Time, data$TreatStart)))
+        r <- group_time_with_breaks(start_times, stats::na.omit(breaks))
         names(r) <- purrr::map_chr(r, ~ paste("Treat Start:", paste(.x, collapse = ", ")))
         r
     })
@@ -284,7 +283,7 @@ match_by_treat_start_date <- function(data, args) {
     })
 
     results <- local({
-        match_table   <- data.table(ID = unique(data$ID), matchID = NA)
+        match_table   <- data.table::data.table(ID = unique(data$ID), matchID = NA)
         update_match_table <- function(sample, info) {
             individuals_not_yet_matched <- match_table[is.na(matchID), ID]
             sample <- sample[ID %in% individuals_not_yet_matched]
@@ -326,11 +325,11 @@ match_by_treat_start_date <- function(data, args) {
 setattr_formatch <- function(data, formula, covnames, method) {
     stopifnot(inherits(data, "data.table"))
     stopifnot(setequal(names(data), c("ID", "Time", "Treat", "TreatStart", "pscore", covnames)))
-    setcolorder(data, c("ID", "Time", "Treat", "TreatStart", "pscore", covnames))
-    data %>% data.table::setattr("covariates",     covnames) %>%
-             data.table::setattr("pscore_formula", formula)  %>%
-             data.table::setattr("pscore_method",  method)   %>%
-             data.table::setattr("class",          c("datatable_for_match", class(data)))
+    data.table::setcolorder(data, c("ID", "Time", "Treat", "TreatStart", "pscore", covnames))
+    data.table::setattr(data, "covariates",     covnames)
+    data.table::setattr(data, "pscore_formula", formula)
+    data.table::setattr(data, "pscore_method",  method)
+    data.table::setattr(data, "class",          c("datatable_for_match", class(data)))
     data
 }
 
@@ -411,10 +410,12 @@ nearest_match <- function(data, treat, distance,
                           replace = FALSE, ...) {
     other_args <- list(...)
     stopifnot(all(c(treat, distance) %in% names(data))) 
-    stopifnot(length(unique(na.omit(data[[treat]]))) == 2L)
-    data_for_match <- data[, .SD, .SDcols = c(treat, distance)][, no := .I] %>%
-                      na.omit(c(treat, distance))
-    setnames(data_for_match, c("treat", "distance", "no"))
+    stopifnot(length(unique(stats::na.omit(data[[treat]]))) == 2L)
+    data_for_match <- stats::na.omit(
+        data[, .SD, .SDcols = c(treat, distance)][, no := .I],
+        c(treat, distance)
+    )
+    data.table::setnames(data_for_match, c("treat", "distance", "no"))
     data_for_match[, treat := { 
         if      (is.factor(treat))  as.integer(treat) - 1L
         else if (is.logical(treat)) as.integer(treat)
@@ -422,10 +423,11 @@ nearest_match <- function(data, treat, distance,
         else                        stop("Treat must be factor or numeric", call. = FALSE)
     }]
 
-    common_support <-
-        data_for_match[, .(m = min(distance), M = max(distance)), by = treat]     %>%
-                     .[, .(m = max(m), M = min(M))]                               %>%
-                     do.call(function(m, M) if (m > M) NULL else c(m, M), .)
+    common_support <- {
+        tmp <- data_for_match[, .(m = min(distance), M = max(distance)), by = treat][
+                   , .(m = max(m), M = min(M))]
+        do.call(function(m, M) if (m > M) NULL else c(m, M), tmp)
+    }
     if (discard == "both") {
         if (is.null(common_support))
             stop("No units matched! Common Support is empty!", call. = FALSE)
@@ -433,22 +435,22 @@ nearest_match <- function(data, treat, distance,
     }
 
     if (!is.null(caliper) && isTRUE(std.caliper)) {
-        caliper <- sd(data_for_match$distance) * caliper
+        caliper <- stats::sd(data_for_match$distance) * caliper
     }
 
     match_order = ifthen(other_args$m.order, "largest")
     switch(
         match_order,
         largest  = {
-            setorder(data_for_match, -treat, -distance)
+            data.table::setorder(data_for_match, -treat, -distance)
         },
         smallest = {
-            setorder(data_for_match, -treat, distance)
+            data.table::setorder(data_for_match, -treat, distance)
         },
         random   = {
-            data_for_match[, randno := sample.int(.N), by = treat]     %>%
-                setorder(-treat, randno)                               %>%
-                .[, randno := NULL]
+            data_for_match[, randno := sample.int(.N), by = treat]
+            data.table::setorder(data_for_match, -treat, randno)
+            data_for_match[, randno := NULL]
         }
     )
 
@@ -462,7 +464,7 @@ nearest_match <- function(data, treat, distance,
     ) 
     match_result <- do.call(query_valid_control_group, match_args)
 
-    list(match_table      = na.omit(match_result),
+    list(match_table      = stats::na.omit(match_result),
          common_support   = common_support,
          caliper          = caliper,
          X                = data_for_match,
@@ -479,14 +481,14 @@ query_valid_control_group <- function(treat, control,
     if (nrow(treat) == 0L)
         return(NULL)
     if (nrow(control) == 0L)
-        return(data.table(treat_no = treat[[1]], control_no = NA))
+        return(data.table::data.table(treat_no = treat[[1]], control_no = NA))
     names(treat)   <- c("id", "score")
     names(control) <- c("id", "score")
     stopifnot(!anyDuplicated(control$id))
     remaining_id <- control$id
     matchID <- purrr::map(treat$score, ~ {
         remaining <- control[id %in% remaining_id]
-        min_no    <- diff_process_fun(.x - remaining$score) %>% which.min()
+        min_no    <- which.min(diff_process_fun(.x - remaining$score))
         min_value <- diff_process_fun(.x - remaining$score[min_no])
         if (min_value > ifthen(caliper, Inf)) return(NA)
 
@@ -495,9 +497,11 @@ query_valid_control_group <- function(treat, control,
             remaining_id <<- remaining_id[remaining_id != min_id]
         }
         min_id
-    }) %>% unlist()
+    }) |> unlist()
 
-    data.table(treat_no = treat$id, control_no = matchID) %>% setorder(treat_no)
+    result <- data.table::data.table(treat_no = treat$id, control_no = matchID)
+    data.table::setorder(result, treat_no)
+    result
 }
 
 # vim: foldmethod=expr

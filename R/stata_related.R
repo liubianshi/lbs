@@ -39,7 +39,7 @@ stlabel <- function(df, var, attr, type = "label") {
     var <- rlang::enquo(var)
     varlist <- get_df_names(df, !!var)
     stopifnot(length(varlist) == length(attr))
-    purrr::walk2(varlist, attr, ~ setattr(df[[.x]], name = type, .y))
+    purrr::walk2(varlist, attr, ~ data.table::setattr(df[[.x]], name = type, .y))
 }
 
 #' format number in a reasonable way
@@ -128,9 +128,9 @@ stsum.default <- function(object, na.rm = TRUE, format = TRUE,
                            nsmall = 3L, width = 7L, big.mark = ",",
                            quietly = FALSE, ...) {
     if (na.rm == TRUE) object <- object[!is.na(object)]
-    y <- c(length(object), mean(object), sd(object), min(object),
-           quantile(object, 0.250), quantile(object, 0.500),
-           quantile(object, 0.750), max(object))
+    y <- c(length(object), mean(object), stats::sd(object), min(object),
+           stats::quantile(object, 0.250), stats::quantile(object, 0.500),
+           stats::quantile(object, 0.750), max(object))
     z <- if (format == TRUE) {
             stformat(y, digits = digits, nsmall = nsmall,
                      width = width, big.mark = big.mark)

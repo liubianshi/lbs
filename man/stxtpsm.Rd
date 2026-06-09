@@ -29,7 +29,7 @@ stxtpsm(
 \item{time}{column name of panel time; falls back to \code{attr(data, "xt")[2]}.}
 
 \item{method}{a string indicating the method used to calcuate propensity
-score which will be passed to \code{binomial()} as augument \code{link}.}
+score which will be passed to \code{stats::binomial()} as augument \code{link}.}
 
 \item{...}{additional arguments forwarded to the matching function.}
 }

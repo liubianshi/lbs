@@ -1,0 +1,5 @@
+^\.code-review-graph$
+^\.vim$
+^tags$
+^\.scout$
+^\.claude$

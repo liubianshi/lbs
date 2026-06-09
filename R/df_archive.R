@@ -77,7 +77,7 @@ df_archive <- function(
   table_attr["name"] <- paste(database, table, sep = ":")
   stopifnot("keys" %in% names(table_attr))
   keys <- stringr::str_split(table_attr["keys"], "\\s+")[[1]]
-  stopifnot(anyDuplicated(setDT(df)[, ..keys]) == 0)
+  stopifnot(anyDuplicated(data.table::setDT(df)[, ..keys]) == 0)
 
   # check the integraty of all variables' attributes
   vari_attr <- lapply(df, check_attr, quietly = TRUE)
@@ -215,7 +215,6 @@ parquet_path <- function(database, table) {
 #' @param replace logical. If TRUE, overwrite existing file. Default FALSE.
 #' @param append logical. If TRUE, read existing file, rbind and rewrite. Default FALSE.
 #' @return TRUE invisibly on success, NA if file exists and neither replace nor append.
-#' @importFrom arrow read_parquet write_parquet
 #' @export
 df2parquet <- function(df, database, table, replace = FALSE, append = FALSE) {
   path <- parquet_path(database, table)

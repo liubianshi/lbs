@@ -30,7 +30,7 @@ sttsset <- function(df, time) {
     time_name <- gsub("[\"']", "", deparse(substitute(time)))
     if (! time_name %in% names(df)) time_name <- time
 
-    setattr(df, "ts", time_name)
+    data.table::setattr(df, "ts", time_name)
     check_result <- sttscheck(df)
     if (isFALSE(check_result[[1]])) {
         stop("time-series set failed:\n", check_result[[2]])

@@ -41,7 +41,6 @@ open_meta_con <- function() {
 #' @param noinfo If TRUE (default), return only the data. If FALSE, return a
 #'   list with `data` and `info`.
 #' @return A data.table.
-#' @importFrom duckdb duckdb dbConnect dbDisconnect
 #' @export
 read_archive <- function(
   database,
@@ -96,7 +95,7 @@ read_archive <- function(
     "\n================================="
   )
 
-  data <- DBI::dbGetQuery(con, sel) %>% setDT()
+  data <- data.table::setDT(DBI::dbGetQuery(con, sel))
   info <- getdatainfo(database, table, var)
   stlabel(data, names(data), info[, label])
 
@@ -145,9 +144,9 @@ getdatainfo <- function(database, table, var = NULL) {
     )
   }
 
-  out <- DBI::dbGetQuery(con, sel) %>% setDT()
+  out <- data.table::setDT(DBI::dbGetQuery(con, sel))
   if (length(var) >= 2L) {
-    namelist <- strsplit(out$name, ":") %>% purrr::map_chr(`[[`, 3)
+    namelist <- purrr::map_chr(strsplit(out$name, ":"), `[[`, 3)
     out <- out[match(var, namelist)]
   }
   out
@@ -164,8 +163,8 @@ list_variables <- function() {
   on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
 
   vars <- DBI::dbGetQuery(con, "SELECT name, label FROM meta_variables")
-  varnames <- vars$name %>% stringr::str_split(":")
-  invisible(data.table(
+  varnames <- stringr::str_split(vars$name, ":")
+  invisible(data.table::data.table(
     database = purrr::map_chr(varnames, 1),
     table = purrr::map_chr(varnames, 2),
     variable = purrr::map_chr(varnames, 3),
@@ -194,10 +193,10 @@ list_tables <- function() {
     con,
     "SELECT name, keys, description FROM meta_tables"
   )
-  tablenames <- tables$name %>% stringr::str_split(":")
+  tablenames <- stringr::str_split(tables$name, ":")
   databaseList <- purrr::map_chr(tablenames, 1)
   tableList <- purrr::map_chr(tablenames, 2)
-  setDT(tables)[, `:=`(
+  data.table::setDT(tables)[, `:=`(
     database = ..databaseList,
     table = ..tableList,
     name = NULL

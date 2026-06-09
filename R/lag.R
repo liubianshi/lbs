@@ -67,9 +67,9 @@ stlag.data.frame <- function(x, varlist = NULL, time = NULL, by = NULL,
     names_df <- names(x)
 
     # 将 data.frame 转化为 data.table
-    if (isFALSE(is.data.table(x))) {
+    if (isFALSE(data.table::is.data.table(x))) {
         if (is.null(mode)) stop("Update by reference needing a data.table")
-        setDT(x)
+        data.table::setDT(x)
     }
 
     # 变量名裸字转换为变量名向量
@@ -129,11 +129,11 @@ stlag.data.frame <- function(x, varlist = NULL, time = NULL, by = NULL,
         x[, c(.SD[, 1], lapply(.SD[, -1], stlag.default, .SD[[1]], ..n)),
             by = c(by), .SDcols = c(time, varlist)]
     }
-    setnames(new.df, c(by, time, k.lag.varlist))
+    data.table::setnames(new.df, c(by, time, k.lag.varlist))
     out <- if (mode == "list") {
         as.list(new.df[, c(..k.lag.varlist)])
     } else if (mode == "data.frame") {
-        setDF(new.df)
+        data.table::setDF(new.df)
     } else if (mode == "data.table") {
         new.df
     } else if (mode == "vector") {
