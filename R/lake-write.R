@@ -1,182 +1,14 @@
-#' Read a registered raw entity from the econ-data data lake.
-#'
-#' Compatibility shim during the migration from lbs's `~/Data/DBMS` archive
-#' to the econ-data data lake. Translates lbs `(database, table)` coordinates
-#' to the lake's `raw:<source>/<dataset>@<version>` id format and reads the
-#' corresponding `data.parquet`. Column labels stored in the entity's
-#' `meta.yaml` are attached to the result via [stlabel()], matching the
-#' attribute shape of [read_archive()].
-#'
-#' Naming rules mirror the migration generator (`gen_mapping.R`):
-#' - `source`  = `tolower(database)` with a leading `"chn_"` stripped
-#' - `dataset` = `tolower(table)` minus a trailing 4-digit year suffix
-#'   (optionally `Q1`–`Q4`)
-#' - `version` = the stripped suffix in lowercase, or `"v1"` if absent
-#'
-#' Examples of the mapping:
-#' - `CHN_FirmTrade`, `HG2005`      → `raw:firmtrade/hg@2005`
-#' - `CHN_FirmTrade`, `HG2005Q4`    → `raw:firmtrade/hg@2005q4`
-#' - `Coding_Inds`,   `HS92_ISIC2`  → `raw:coding_inds/hs92_isic2@v1`
-#'
-#' @param database lbs database name (e.g. `"CHN_FirmTrade"`).
-#' @param table lbs table name (e.g. `"HG2005"`).
-#' @param var optional character vector of column names to project.
-#' @param condition optional SQL `WHERE` clause(s); same semantics as
-#'   [read_archive()].
-#' @param and `TRUE` (default) joins `condition` with `AND`; `FALSE` with `OR`.
-#' @param limit optional integer row cap.
-#' @param noinfo if `TRUE` (default) return the `data.table` directly; if
-#'   `FALSE` return `list(data, info)` matching [read_archive()].
-#' @param lake_path data lake root. Defaults to the env var
-#'   `ECON_DATA_LAKE_PATH`, falling back to `~/Data/econ-data-lake`.
-#' @return `data.table` (or `list(data, info)` if `noinfo = FALSE`).
-#' @seealso [read_archive()] for the legacy file-based reader.
-#' @export
-read_archive_lake <- function(
-  database,
-  table,
-  var = NULL,
-  condition = NULL,
-  and = TRUE,
-  limit = NULL,
-  noinfo = TRUE,
-  lake_path = NULL
-) {
-  if (is.null(lake_path)) {
-    lake_path <- Sys.getenv(
-      "ECON_DATA_LAKE_PATH",
-      unset = file.path(Sys.getenv("HOME"), "Data", "econ-data-lake")
-    )
-  }
-
-  id <- lbs_to_raw_id(database, table)
-  entity_dir <- file.path(lake_path, sub("^raw:", "raw/", id))
-  data_path <- file.path(entity_dir, "data.parquet")
-  meta_path <- file.path(entity_dir, "meta.yaml")
-
-  if (!file.exists(data_path)) {
-    stop(sprintf(
-      "Entity not in lake: %s\n  expected at: %s\n  (database=%s, table=%s)",
-      id,
-      data_path,
-      database,
-      table
-    ))
-  }
-
-  varlist <- if (is.null(var)) "*" else paste(var, collapse = ", ")
-
-  if (is.null(condition)) {
-    where <- "TRUE"
-  } else {
-    condition <- paste0("(", condition, ")")
-    where <- if (isTRUE(and)) {
-      paste(condition, collapse = " AND \n       ")
-    } else if (isFALSE(and)) {
-      paste(condition, collapse = " OR \n       ")
-    } else {
-      stop("param 'and' only accept TRUE or FALSE")
-    }
-  }
-  if (!is.null(limit)) where <- paste(where, "\n LIMIT", limit)
-
-  sel <- sprintf(
-    "SELECT %s FROM read_parquet('%s') WHERE %s",
-    varlist,
-    data_path,
-    where
-  )
-
-  con <- duckdb::dbConnect(duckdb::duckdb(), dbdir = ":memory:")
-  on.exit(duckdb::dbDisconnect(con, shutdown = TRUE), add = TRUE)
-  data <- data.table::setDT(DBI::dbGetQuery(con, sel))
-
-  info <- lake_columns_info(meta_path, var)
-  if (nrow(info) > 0 && exists("stlabel", mode = "function")) {
-    stlabel(data, info[["name"]], info[["label"]])
-  }
-
-  if (isTRUE(noinfo)) data else list(data = data, info = info)
-}
-
-#' Translate lbs `(database, table)` coordinates to an econ-data raw entity id.
-#'
-#' Forward-only re-implementation of the rules baked into `gen_mapping.R`
-#' (Phase 1 of the DBMS migration). Exported so callers can preview the
-#' resolved id without performing the read.
-#'
-#' @inheritParams read_archive_lake
-#' @return character scalar, the `raw:` entity id.
-#' @export
-lbs_to_raw_id <- function(database, table) {
-  src <- tolower(database)
-  src <- sub("^chn_", "", src)
-  src <- gsub("[^a-z0-9_]", "_", src)
-  src <- gsub("_+", "_", src)
-  src <- gsub("^_+|_+$", "", src)
-
-  tbl <- tolower(table)
-  m <- regmatches(tbl, regexec("^(.*?)([0-9]{4}(?:[qQ][1-4])?)$", tbl))[[1]]
-  if (length(m) == 3 && nzchar(m[2])) {
-    ds <- m[2]
-    ver <- m[3]
-  } else {
-    ds <- tbl
-    ver <- "v1"
-  }
-  ds <- gsub("[^a-z0-9_]", "_", ds)
-  ds <- gsub("_+", "_", ds)
-  ds <- gsub("^_+|_+$", "", ds)
-
-  sprintf("raw:%s/%s@%s", src, ds, ver)
-}
-
-# Parse meta.yaml columns array into a small data.table { name, label }.
-# Internal helper, not exported.
-lake_columns_info <- function(meta_path, var = NULL) {
-  empty <- data.table::data.table(name = character(), label = character())
-  if (!file.exists(meta_path)) return(empty)
-
-  m <- tryCatch(
-    yaml::read_yaml(meta_path),
-    error = function(e) NULL
-  )
-  if (is.null(m) || is.null(m$columns) || length(m$columns) == 0) return(empty)
-
-  names_v <- vapply(
-    m$columns,
-    function(c) if (is.null(c$name)) NA_character_ else c$name,
-    character(1)
-  )
-  labels_v <- vapply(
-    m$columns,
-    function(c) {
-      if (is.null(c$description) || identical(c$description, "")) {
-        NA_character_
-      } else {
-        c$description
-      }
-    },
-    character(1)
-  )
-
-  out <- data.table::data.table(name = names_v, label = labels_v)
-  if (!is.null(var)) out <- out[out$name %in% var]
-  out
-}
-
-
-# ---------------------------------------------------------------------------
-# Write side: register a data.frame as a raw entity in the econ-data lake.
+# ===========================================================================
+# econ-data data lake — write side. See lake-utils.R for shared internals.
 #
 # Implementation strategy (shell-out, see econ-data-plan §P1.2):
-#   1. Build meta.yaml in R using map_lake_dtype() for column-type inference.
+#   1. Build meta.yaml in R using lake_dtype() for column-type inference.
 #   2. Atomically place data.parquet under $ECON_DATA_LAKE_PATH/raw/.../@v/.
 #   3. Delegate validation + audit hook to `econ-data entity register --meta`.
 # This keeps every write path through the same schema gateway as direct CLI
 # use, so dtype rules (binary rejected, RFC3339 timestamps, etc.) are
 # enforced in exactly one place.
-# ---------------------------------------------------------------------------
+# ===========================================================================
 
 #' Translate an R column class to the econ-data meta.yaml dtype vocabulary.
 #'
@@ -190,7 +22,7 @@ lake_columns_info <- function(meta_path, var = NULL) {
 #' @param x a column (atomic vector / factor / POSIXct / etc.).
 #' @return character scalar.
 #' @export
-map_lake_dtype <- function(x) {
+lake_dtype <- function(x) {
   if (inherits(x, c("POSIXct", "POSIXt"))) return("timestamp")
   if (inherits(x, "Date")) return("date")
   if (is.factor(x) || is.character(x)) return("string")
@@ -213,24 +45,47 @@ map_lake_dtype <- function(x) {
   format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 }
 
-# Parse a raw entity id into its components. Concise validator — does NOT
-# replicate the full pkg/entityid grammar; just enough to fail early before
-# we touch disk. The CLI does the authoritative check.
-.parse_raw_id <- function(id) {
-  m <- regmatches(id, regexec("^raw:([a-z0-9][a-z0-9_]*[a-z0-9]?)/([a-z0-9][a-z0-9_]*[a-z0-9]?)@([a-z0-9][a-z0-9_]*[a-z0-9]?)$", id))[[1]]
-  if (length(m) != 4 || !nzchar(m[2])) {
-    stop("register_lake() currently supports raw entities only.\n",
-         "  Expected id format: raw:<source>/<dataset>@<version>\n",
-         "  Got: ", id)
-  }
-  list(source = m[2], dataset = m[3], version = m[4])
-}
+# A lake id segment ("slug"): lowercase letters / digits / underscores, must
+# start with an alphanumeric. A loose mirror of the CLI's strict grammar — we
+# only validate enough to fail early; the CLI does the authoritative check.
+.lake_id_slug <- "^[a-z0-9][a-z0-9_]*[a-z0-9]?$"
 
-# Resolve the lake root: explicit arg > ECON_DATA_LAKE_PATH > ~/Data/econ-data-lake.
-.resolve_lake_path <- function(lake_path) {
-  if (!is.null(lake_path) && nzchar(lake_path)) return(lake_path)
-  Sys.getenv("ECON_DATA_LAKE_PATH",
-             unset = file.path(Sys.getenv("HOME"), "Data", "econ-data-lake"))
+# Parse a raw entity id `raw:<source>/<dataset>@<version>` into its parts.
+# Splits on the structural separators first, then validates each segment, so a
+# failure points at the offending piece instead of a single opaque regex miss.
+# register only supports raw:.
+.parse_raw_id <- function(id) {
+  bad <- function(reason) {
+    stop("lake_register() ", reason, ".\n",
+         "  Expected id format: raw:<source>/<dataset>@<version>\n",
+         "  Got: ", id, call. = FALSE)
+  }
+
+  # 1. Strip the type prefix — register only handles raw entities.
+  if (!startsWith(id, "raw:")) bad("currently supports raw entities only")
+  body <- sub("^raw:", "", id)
+
+  # 2. Split structure: <source> / <dataset> @ <version>.
+  source_rest <- strsplit(body, "/", fixed = TRUE)[[1]]
+  if (length(source_rest) != 2L) bad("id must contain exactly one '/'")
+
+  dataset_version <- strsplit(source_rest[2], "@", fixed = TRUE)[[1]]
+  if (length(dataset_version) != 2L) bad("id must contain exactly one '@'")
+
+  parts <- list(
+    source = source_rest[1],
+    dataset = dataset_version[1],
+    version = dataset_version[2]
+  )
+
+  # 3. Validate each segment, naming the bad one in the error.
+  for (nm in names(parts)) {
+    if (!grepl(.lake_id_slug, parts[[nm]])) {
+      bad(sprintf("has an invalid %s segment: '%s'", nm, parts[[nm]]))
+    }
+  }
+
+  parts
 }
 
 # Build the columns list for meta.yaml: each entry is always a list (never
@@ -240,7 +95,7 @@ map_lake_dtype <- function(x) {
   out <- vector("list", length(col_names))
   for (i in seq_along(col_names)) {
     cn <- col_names[i]
-    auto_dtype <- map_lake_dtype(df[[cn]])
+    auto_dtype <- lake_dtype(df[[cn]])
     entry <- list(name = cn, dtype = auto_dtype)
 
     if (!is.null(columns) && cn %in% names(columns)) {
@@ -264,15 +119,6 @@ map_lake_dtype <- function(x) {
     out[[i]] <- entry
   }
   out
-}
-
-# Write meta as YAML using yaml::write_yaml, ensuring single-element string
-# fields stay scalars and list-of-maps stay lists.
-.write_meta_yaml <- function(meta, path) {
-  if (!requireNamespace("yaml", quietly = TRUE)) {
-    stop("Package 'yaml' is required for register_lake(); install.packages('yaml').")
-  }
-  yaml::write_yaml(meta, path)
 }
 
 #' Register an R data frame as a raw entity in the econ-data data lake.
@@ -317,11 +163,11 @@ map_lake_dtype <- function(x) {
 #' @param econdata_bin Path to the `econ-data` binary. Defaults to
 #'   `Sys.which("econ-data")`.
 #' @return Invisibly, a `list(id, data_path, meta_path, cli_output, dry_run)`.
-#' @seealso [read_archive_lake()] for the symmetric reader; the
+#' @seealso [lake_read()] for the symmetric reader; the
 #'   `econ-data entity scaffold` CLI command for the equivalent
 #'   shell-only flow.
 #' @export
-register_lake <- function(
+lake_register <- function(
   df,
   id,
   columns = NULL,
@@ -338,13 +184,10 @@ register_lake <- function(
   econdata_bin = NULL
 ) {
   if (!is.data.frame(df)) {
-    stop("register_lake(): 'df' must be a data.frame or data.table; got ",
+    stop("lake_register(): 'df' must be a data.frame or data.table; got ",
          class(df)[1])
   }
-  if (ncol(df) == 0L) stop("register_lake(): 'df' has zero columns.")
-  if (!requireNamespace("arrow", quietly = TRUE)) {
-    stop("Package 'arrow' is required for register_lake(); install.packages('arrow').")
-  }
+  if (ncol(df) == 0L) stop("lake_register(): 'df' has zero columns.")
   status <- match.arg(status)
   parsed <- .parse_raw_id(id)
   lake_root <- .resolve_lake_path(lake_path)
@@ -383,7 +226,7 @@ register_lake <- function(
   if (!is.null(notes) && nzchar(notes)) meta$notes <- notes
 
   if (isTRUE(dry_run)) {
-    cat("[dry-run] register_lake plan:\n")
+    cat("[dry-run] lake_register plan:\n")
     cat("  id          ", id, "\n", sep = "")
     cat("  data path   ", data_path, "\n", sep = "")
     cat("  meta path   ", meta_target, "\n", sep = "")
@@ -436,10 +279,12 @@ register_lake <- function(
     if (!isTRUE(ok)) stop("Failed to place data.parquet at ", data_path)
   }
 
-  # Build meta in a tempfile; pass to CLI. The CLI re-writes it into the lake.
+  # Build meta in a tempfile and hand it to the CLI, which re-writes it into
+  # the lake. Single-element strings stay scalars and the list-of-maps
+  # `columns` stays a list, which is the shape the CLI expects.
   meta_tmp <- tempfile(fileext = ".meta.yaml")
   on.exit(unlink(meta_tmp), add = TRUE)
-  .write_meta_yaml(meta, meta_tmp)
+  yaml::write_yaml(meta, meta_tmp)
 
   args <- c("entity", "register", "--meta", meta_tmp)
   if (isTRUE(overwrite)) args <- c(args, "--yes")
@@ -471,7 +316,7 @@ register_lake <- function(
 #'
 #' Convenience wrapper around [arrow::write_parquet()] that warns on column
 #' types the econ-data validator will reject (binary, list columns). Useful
-#' when you want to inspect the parquet before calling [register_lake()] —
+#' when you want to inspect the parquet before calling [lake_register()] —
 #' or when you're handing the file off to a colleague who will register it.
 #'
 #' @param df data.frame / data.table.
@@ -479,12 +324,9 @@ register_lake <- function(
 #' @param ... forwarded to [arrow::write_parquet()].
 #' @return invisibly the path that was written.
 #' @export
-write_lake <- function(df, path, ...) {
+lake_write <- function(df, path, ...) {
   if (!is.data.frame(df)) {
-    stop("write_lake(): 'df' must be a data.frame.")
-  }
-  if (!requireNamespace("arrow", quietly = TRUE)) {
-    stop("Package 'arrow' is required for write_lake(); install.packages('arrow').")
+    stop("lake_write(): 'df' must be a data.frame.")
   }
   bad <- vapply(df, function(x) {
     inherits(x, "blob") || is.list(x) || is.raw(x)
@@ -492,7 +334,7 @@ write_lake <- function(df, path, ...) {
   if (any(bad)) {
     warning("Columns with classes the econ-data CLI will reject: ",
             paste(names(df)[bad], collapse = ", "),
-            "\n  Cast to string/integer/numeric before register_lake().")
+            "\n  Cast to string/integer/numeric before lake_register().")
   }
   arrow::write_parquet(df, path, ...)
   invisible(path)
