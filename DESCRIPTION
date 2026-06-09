@@ -1,6 +1,6 @@
 Package: lbs
 Title: Personal R Toolkit for Data Archival and Stata-Style Analysis
-Version: 0.0.0.9040
+Version: 0.0.0.9050
 Authors@R:
     person(given = "Wei",
            family = "Luo",
