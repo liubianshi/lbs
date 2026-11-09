@@ -33,6 +33,8 @@ Imports:
     cowplot,
     fixest
 Suggests:
+    GridTable,
+    concordance,
     testthat,
     knitr,
     withr,

@@ -69,3 +69,41 @@ setgraphelements <- function(
 }
 
 
+
+#' Save and optionally preview a ggplot
+#'
+#' Uses OPENER locally and ssh_push in sessions with SSH_TTY set. SSH previews
+#' use port 2222, user liubianshi, and destination /tmp, with overwrite and open.
+#' Preview launch failures warn without discarding a successfully saved plot.
+#' @param ... Arguments passed to ggplot2::ggsave(). Background defaults to white.
+#' @param open Logical scalar. Preview after saving; set FALSE for batch jobs.
+#' @return Character scalar, the saved file path.
+#' @export
+#' @examples
+#' \dontrun{gg("plot.png", plot = ggplot2::last_plot(), open = FALSE)}
+gg <- function(..., open = TRUE) {
+  stopifnot(is.logical(open), length(open) == 1L, !is.na(open))
+  args <- list(...)
+  if (is.null(args$bg)) args$bg <- "white"
+  filename <- do.call(ggplot2::ggsave, args)
+  if (open) .gg_preview(filename)
+  return(filename)
+}
+
+.gg_preview <- function(filename) {
+  remote <- nzchar(Sys.getenv("SSH_TTY"))
+  command <- if (remote) "ssh_push" else Sys.getenv("OPENER")
+  args <- if (remote) c("--port", "2222", "--user", "liubianshi", "--dest", "/tmp",
+                        "--force", "--open", shQuote(filename)) else shQuote(filename)
+  tryCatch({
+    if (!nzchar(command) || !.gg_command_available(command)) stop("preview command unavailable")
+    status <- .gg_launch(command, args)
+    if (!identical(status, 0L)) stop("preview command failed to start")
+  }, error = function(e) logger_factory("Graph")$warning(
+    "Saved ", filename, "; preview failed: ", conditionMessage(e)))
+  invisible(filename)
+}
+
+.gg_command_available <- function(command) nzchar(Sys.which(command))
+
+.gg_launch <- function(command, args) system2(command, args, wait = FALSE)
